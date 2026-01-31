@@ -9,6 +9,8 @@ interface RightPanelProps {
     progress: number;
     currentTranslatingFile: string | null;
     translationProgress: TranslationProgress | null;
+    translationMode: 'fast' | 'professional';
+    onTranslationModeChange: (mode: 'fast' | 'professional') => void;
     onTranslateAll: () => void;
     onDownloadAll: () => void;
     onDownloadSingle: (doc: TranslatedDocument) => void;
@@ -37,6 +39,8 @@ const RightPanel: React.FC<RightPanelProps> = ({
     progress,
     currentTranslatingFile,
     translationProgress,
+    translationMode,
+    onTranslationModeChange,
     onTranslateAll,
     onDownloadAll,
     onDownloadSingle,
@@ -94,6 +98,39 @@ const RightPanel: React.FC<RightPanelProps> = ({
                         </>
                     )}
                 </button>
+
+                {/* Translation Mode Selector */}
+                {!isTranslating && (
+                    <div className="mb-3 2xl:mb-4">
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => onTranslationModeChange('fast')}
+                                className={`
+                                    flex-1 h-9 2xl:h-10 rounded-md flex items-center justify-center text-xs 2xl:text-sm font-medium transition-all duration-200
+                                    ${translationMode === 'fast'
+                                        ? 'bg-profBlue-800 text-white shadow-md'
+                                        : 'bg-white text-slate-600 border border-lightGray-200 hover:border-profBlue-800 hover:text-profBlue-800'}
+                                `}
+                            >
+                                <span>⚡ Fast</span>
+                            </button>
+                            <button
+                                onClick={() => onTranslationModeChange('professional')}
+                                className={`
+                                    flex-1 h-9 2xl:h-10 rounded-md flex items-center justify-center text-xs 2xl:text-sm font-medium transition-all duration-200
+                                    ${translationMode === 'professional'
+                                        ? 'bg-profBlue-800 text-white shadow-md'
+                                        : 'bg-white text-slate-600 border border-lightGray-200 hover:border-profBlue-800 hover:text-profBlue-800'}
+                                `}
+                            >
+                                <span>✨ Professional</span>
+                            </button>
+                        </div>
+                        <p className="text-[10px] 2xl:text-xs text-slate-500 text-center mt-1.5 2xl:mt-2">
+                            {translationMode === 'fast' ? 'Faster, cost-effective' : 'Higher quality, advanced model'}
+                        </p>
+                    </div>
+                )}
 
                 {/* Progress Indicator */}
                 {isTranslating && (

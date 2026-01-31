@@ -102,17 +102,19 @@ export function getLanguageName(code: string): string {
  * @param targetLanguage The target language (e.g., "Spanish").
  * @param excludedText Text to exclude from translation (optional).
  * @param targetLanguageCode Optional language code (kept for backward compatibility).
+ * @param customModel Optional custom model to use instead of default.
  * @returns The translated text.
  */
 export const translateLegalText = async (
   text: string,
   targetLanguage: string = "Spanish",
   excludedText?: string,
-  targetLanguageCode?: string
+  targetLanguageCode?: string,
+  customModel?: string
 ): Promise<string> => {
   try {
-    // Use the default translation model for all languages
-    const modelId = TRANSLATION_MODEL;
+    // Use custom model if provided, otherwise use default
+    const modelId = customModel || TRANSLATION_MODEL;
     
     let prompt = `You are a professional legal translator. Translate the following legal document text into ${targetLanguage}.
     Maintain a formal, authoritative, and professional tone suitable for legal proceedings.
@@ -249,8 +251,8 @@ export async function translateBatchLegalText(
       : getLanguageName(config.sourceLanguage);
   const targetLangDisplay = getLanguageName(config.targetLanguage);
 
-  // Use the default translation model for all languages
-  const modelToUse = TRANSLATION_MODEL;
+  // Use custom model from config if provided, otherwise use default
+  const modelToUse = config.model || TRANSLATION_MODEL;
 
   const excludeNote = config.excludedTerms.length > 0
     ? `\nPRESERVE UNCHANGED: ${config.excludedTerms.join(", ")}`

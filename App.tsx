@@ -76,6 +76,9 @@ const App: React.FC = () => {
   // New state for translation pipeline
   const [translationProgress, setTranslationProgress] = useState<TranslationProgress | null>(null);
 
+  // Translation mode state ('fast' or 'professional')
+  const [translationMode, setTranslationMode] = useState<'fast' | 'professional'>('professional');
+
   // Language selection state
   const [sourceLanguage, setSourceLanguage] = useState('auto');
   const [targetLanguage, setTargetLanguage] = useState('en');
@@ -187,6 +190,11 @@ const App: React.FC = () => {
       try {
         // Check if it's a DOCX file - use new pipeline
         if (doc.file.name.endsWith('.docx')) {
+          // Map translation mode to model
+          const selectedModel = translationMode === 'fast'
+            ? 'gemini-2.5-flash-lite'
+            : 'gemini-3-flash-preview';
+
           // Build translation config
           const config: TranslationConfig = {
             ...DEFAULT_CONFIG,
@@ -199,6 +207,7 @@ const App: React.FC = () => {
             translateHeaders: settings.translateHeaders,
             translateFooters: settings.translateHeaders,  // Same checkbox controls both
             translateFootnotes: settings.translateFootnotes,
+            model: selectedModel,
           };
 
           // Parse the DOCX file
@@ -272,7 +281,18 @@ const App: React.FC = () => {
           }
         } else {
           // For non-DOCX files, use the original simple translation
-          const translatedText = await translateLegalText(doc.content, getLanguageName(targetLanguage), settings.excludedText, targetLanguage);
+          // Map translation mode to model
+          const selectedModel = translationMode === 'fast'
+            ? 'gemini-2.5-flash-lite'
+            : 'gemini-3-flash-preview';
+
+          const translatedText = await translateLegalText(
+            doc.content,
+            getLanguageName(targetLanguage),
+            settings.excludedText,
+            targetLanguage,
+            selectedModel
+          );
 
           setTranslatedDocs(prev => prev.map(td => {
             if (td.originalDocId === doc.id) {
@@ -427,6 +447,8 @@ const App: React.FC = () => {
           progress={progress}
           currentTranslatingFile={currentTranslatingFile}
           translationProgress={translationProgress}
+          translationMode={translationMode}
+          onTranslationModeChange={setTranslationMode}
           onTranslateAll={handleTranslateAll}
           onDownloadAll={handleDownloadAll}
           onDownloadSingle={handleDownloadSingle}

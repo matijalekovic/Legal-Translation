@@ -106,6 +106,7 @@ export interface TranslationConfig {
   translateFooters: boolean;
   translateFootnotes: boolean;
   modelTemperature: number;
+  model?: string; // Optional model to use for translation
 }
 
 /**
