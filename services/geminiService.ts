@@ -1,27 +1,27 @@
-import { GoogleGenAI } from "@google/genai";
 import { BatchTranslationResponse, TranslationConfig, LegalDocumentContext, LegalSection, LegalSectionType } from "../types";
 
-// Get API key from multiple possible sources
-function getApiKey(): string {
-  // Try process.env (Vite injects this)
-  if (typeof process !== 'undefined' && process.env?.API_KEY) {
-    return process.env.API_KEY;
-  }
-  // Try import.meta.env (Vite standard)
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GEMINI_API_KEY) {
-    return (import.meta as any).env.VITE_GEMINI_API_KEY;
-  }
-  // Try global variable (Google AI Studio may inject this)
-  if (typeof (globalThis as any).API_KEY !== 'undefined') {
-    return (globalThis as any).API_KEY;
-  }
-  // Fallback - will cause error when used
-  console.warn('No API key found. Please set GEMINI_API_KEY in .env file');
-  return '';
-}
+// Helper function to call the serverless API
+async function callGeminiAPI(model: string, contents: string, config?: any): Promise<string> {
+  const response = await fetch('/api/translate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      contents,
+      config,
+    }),
+  });
 
-// Initialize the Gemini API client
-const ai = new GoogleGenAI({ apiKey: getApiKey() });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'API request failed');
+  }
+
+  const data = await response.json();
+  return data.text || '';
+}
 
 // Model for translation pipeline
 const TRANSLATION_MODEL = "gemini-2.5-flash-lite";
@@ -82,12 +82,8 @@ export const translateLegalText = async (
       `;
     }
 
-    const response = await ai.models.generateContent({
-      model: modelId,
-      contents: prompt,
-    });
-
-    return response.text || "Translation failed to generate text.";
+    const responseText = await callGeminiAPI(modelId, prompt);
+    return responseText || "Translation failed to generate text.";
 
   } catch (error) {
     console.error("Gemini Translation Error:", error);
@@ -118,16 +114,10 @@ Respond in JSON format:
 }`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: TRANSLATION_MODEL,
-      contents: prompt,
-      config: {
-        temperature: 0.1,
-        maxOutputTokens: 500,
-      },
+    const text = await callGeminiAPI(TRANSLATION_MODEL, prompt, {
+      temperature: 0.1,
+      maxOutputTokens: 500,
     });
-
-    const text = response.text || "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
@@ -233,16 +223,11 @@ Return EXACTLY ${texts.length} translations as JSON: {"translations":["...",...]
 INPUT:
 ${JSON.stringify(texts)}`;
 
-  const response = await ai.models.generateContent({
-    model: TRANSLATION_MODEL,
-    contents: prompt,
-    config: {
-      temperature: config.modelTemperature,
-      maxOutputTokens: 16384,
-    },
+  const responseText = await callGeminiAPI(TRANSLATION_MODEL, prompt, {
+    temperature: config.modelTemperature,
+    maxOutputTokens: 16384,
   });
 
-  const responseText = response.text || "";
   return parseTranslationResponse(responseText, texts);
 }
 
