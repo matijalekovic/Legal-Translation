@@ -7,7 +7,7 @@ interface LeftPanelProps {
   onUpload: (files: File[]) => void;
   onRemove: (id: string) => void;
   onSelect: (id: string) => void;
-  selectedDocId: string | null;
+  selectedDocIds: string[];
   settings: DocumentSettings;
   onSettingsChange: (settings: DocumentSettings) => void;
 }
@@ -17,7 +17,7 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
   onUpload,
   onRemove,
   onSelect,
-  selectedDocId,
+  selectedDocIds,
   settings,
   onSettingsChange
 }) => {
@@ -121,29 +121,40 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
                     <p className="text-sm text-slate-400 italic">No documents in queue</p>
                 </div>
             )}
-            {documents.map((doc) => (
-                <div 
+            {documents.map((doc) => {
+                const isSelected = selectedDocIds.includes(doc.id);
+                return (
+                <div
                     key={doc.id}
                     onClick={() => onSelect(doc.id)}
                     className={`
                         group relative w-full p-3 rounded-lg border cursor-pointer transition-all duration-200 flex items-center gap-3
-                        ${selectedDocId === doc.id 
-                            ? 'bg-blue-50/60 border-profBlue-800 shadow-[0_0_0_1px_rgba(44,82,130,1)] z-10' 
+                        ${isSelected
+                            ? 'bg-blue-50/60 border-profBlue-800 shadow-[0_0_0_1px_rgba(44,82,130,1)] z-10'
                             : 'bg-white border-lightGray-200 hover:border-profBlue-400 hover:shadow-md'}
                     `}
                 >
+                    {/* Selection Indicator - Checkbox */}
+                    <div className="shrink-0">
+                        {isSelected ? (
+                            <CheckSquare className="w-5 h-5 text-profBlue-800" />
+                        ) : (
+                            <Square className="w-5 h-5 text-slate-300 group-hover:text-profBlue-600 transition-colors" />
+                        )}
+                    </div>
+
                     {/* Icon Container */}
                     <div className={`
                         w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-200
-                        ${selectedDocId === doc.id ? 'bg-profBlue-100' : 'bg-slate-50 group-hover:bg-blue-50 border border-slate-100'}
+                        ${isSelected ? 'bg-profBlue-100' : 'bg-slate-50 group-hover:bg-blue-50 border border-slate-100'}
                     `}>
-                        <FileText className={`w-5 h-5 ${selectedDocId === doc.id ? 'text-profBlue-800' : 'text-slate-400 group-hover:text-profBlue-600'}`} />
+                        <FileText className={`w-5 h-5 ${isSelected ? 'text-profBlue-800' : 'text-slate-400 group-hover:text-profBlue-600'}`} />
                     </div>
 
                     {/* Content */}
                     <div className="flex-grow min-w-0 pr-6">
-                        <h4 
-                          className={`text-sm font-semibold truncate leading-tight mb-1.5 ${selectedDocId === doc.id ? 'text-profBlue-900' : 'text-navy-900'}`}
+                        <h4
+                          className={`text-sm font-semibold truncate leading-tight mb-1.5 ${isSelected ? 'text-profBlue-900' : 'text-navy-900'}`}
                           title={doc.name}
                         >
                             {doc.name}
@@ -168,7 +179,8 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
                         <X className="w-4 h-4" />
                     </button>
                 </div>
-            ))}
+                );
+            })}
         </div>
 
       </div>
