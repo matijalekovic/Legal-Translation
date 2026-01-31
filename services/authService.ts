@@ -5,8 +5,11 @@
 // Allowed domain and specific emails
 const ALLOWED_DOMAIN = '@milovanoviclaw.com';
 const ALLOWED_EMAILS = [
-  'jovana.risotvic@gmail.com',
-  'matija.lekovic@gmail.com'
+  'joca.ristovicmilovanovic@gmail.com',
+  'matija.lekovic@gmail.com',
+  'jristovic@galenika.rs',
+  'predragg.milovanovic@gmail.com'
+  
 ];
 
 /**
