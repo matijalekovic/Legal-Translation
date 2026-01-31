@@ -44,6 +44,13 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
     e.preventDefault();
   };
 
+  const openFileDialog = () => {
+    if (!fileInputRef.current) return;
+    // Ensure multi-select is always enabled before opening the picker.
+    fileInputRef.current.multiple = true;
+    fileInputRef.current.click();
+  };
+
   const toggleSetting = (key: keyof DocumentSettings) => {
     if (key === 'excludedText') return;
     onSettingsChange({
@@ -85,7 +92,7 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
         <div className="p-4 shrink-0">
             <div 
                 className="h-[140px] border-2 border-dashed border-lightGray-300 rounded-lg bg-white hover:bg-blue-50 hover:border-profBlue-800 transition-all duration-200 cursor-pointer flex flex-col items-center justify-center p-4 text-center group"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={openFileDialog}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
             >
