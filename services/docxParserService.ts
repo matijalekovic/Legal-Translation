@@ -332,7 +332,8 @@ function classifyLegalSection(title: string): LegalSectionType {
 }
 
 /**
- * Replaces text content in a paragraph while preserving XML structure
+ * Replaces text content in a paragraph while preserving XML structure and formatting
+ * Preserves subscript, superscript, bold, italic, and other run-level formatting
  */
 export function replaceParagraphText(
   paragraph: Element,
@@ -344,26 +345,81 @@ export function replaceParagraphText(
     return;
   }
 
-  // Put all translated text in the first <w:t> element
-  textElements[0].textContent = translatedText;
+  // If there's only one text element, simple replacement
+  if (textElements.length === 1) {
+    textElements[0].textContent = translatedText;
+    return;
+  }
 
-  // Clear remaining <w:t> elements to avoid duplication
-  for (let i = textElements.length - 1; i > 0; i--) {
+  // Multiple text elements - preserve run structure and formatting
+  // Calculate the proportion of text in each run
+  const runs: Array<{ element: Element; originalLength: number; hasFormatting: boolean }> = [];
+  let totalOriginalLength = 0;
+
+  for (let i = 0; i < textElements.length; i++) {
     const textEl = textElements[i];
     const run = textEl.parentElement; // <w:r> element
+    const originalText = textEl.textContent || '';
+    const originalLength = originalText.length;
 
-    if (run && run.parentElement) {
-      // Check if the run only contains this text element (and possibly rPr)
-      const runChildren = Array.from(run.children).filter(
-        (child) => child.localName !== 'rPr'
-      );
-      const hasOnlyText = runChildren.length === 1 && runChildren[0] === textEl;
+    // Check if this run has special formatting (rPr element)
+    const hasFormatting = run ? run.getElementsByTagNameNS(W_NS, 'rPr').length > 0 : false;
 
-      if (hasOnlyText) {
-        run.parentElement.removeChild(run);
-      } else {
-        run.removeChild(textEl);
+    runs.push({
+      element: textEl,
+      originalLength,
+      hasFormatting
+    });
+
+    totalOriginalLength += originalLength;
+  }
+
+  // If the original paragraph had no text, just put everything in the first element
+  if (totalOriginalLength === 0) {
+    textElements[0].textContent = translatedText;
+    // Clear other elements
+    for (let i = 1; i < textElements.length; i++) {
+      textElements[i].textContent = '';
+    }
+    return;
+  }
+
+  // Distribute translated text proportionally across runs
+  let remainingText = translatedText;
+  let remainingOriginalLength = totalOriginalLength;
+
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i];
+    const isLastRun = i === runs.length - 1;
+
+    if (isLastRun) {
+      // Put all remaining text in the last run
+      run.element.textContent = remainingText;
+    } else {
+      // Calculate proportion for this run
+      const proportion = run.originalLength / remainingOriginalLength;
+      const targetLength = Math.round(remainingText.length * proportion);
+
+      // Find a good break point (prefer spaces)
+      let breakPoint = targetLength;
+      if (targetLength > 0 && targetLength < remainingText.length) {
+        // Look for a space near the target position (within 5 characters)
+        const searchStart = Math.max(0, targetLength - 5);
+        const searchEnd = Math.min(remainingText.length, targetLength + 5);
+        const nearbySpace = remainingText.substring(searchStart, searchEnd).indexOf(' ');
+
+        if (nearbySpace !== -1) {
+          breakPoint = searchStart + nearbySpace + 1; // Include the space in this run
+        }
       }
+
+      // Assign text to this run
+      const textForThisRun = remainingText.substring(0, breakPoint);
+      run.element.textContent = textForThisRun;
+
+      // Update remaining text
+      remainingText = remainingText.substring(breakPoint);
+      remainingOriginalLength -= run.originalLength;
     }
   }
 }

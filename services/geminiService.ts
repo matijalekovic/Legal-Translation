@@ -1,8 +1,8 @@
 import { BatchTranslationResponse, TranslationConfig, LegalDocumentContext, LegalSection, LegalSectionType } from "../types";
 
 // Model constants
-const TRANSLATION_MODEL = "gemini-2.5-flash-lite";
-const FALLBACK_MODEL = "gemini-2.5-flash";
+const TRANSLATION_MODEL = "gemini-3-flash-preview";
+const FALLBACK_MODEL = "gemini-2.5-flash-lite";
 const MAX_RETRIES = 3;
 
 // Helper function to call the serverless API with a single attempt
@@ -101,7 +101,7 @@ export function getLanguageName(code: string): string {
  * @param text The legal text to translate.
  * @param targetLanguage The target language (e.g., "Spanish").
  * @param excludedText Text to exclude from translation (optional).
- * @param targetLanguageCode Optional language code to determine model (e.g., "sr" for Serbian).
+ * @param targetLanguageCode Optional language code (kept for backward compatibility).
  * @returns The translated text.
  */
 export const translateLegalText = async (
@@ -111,9 +111,8 @@ export const translateLegalText = async (
   targetLanguageCode?: string
 ): Promise<string> => {
   try {
-    // Use gemini-3-flash-preview for Serbian, otherwise use default translation model
-    const isSerbian = targetLanguageCode === "sr" || targetLanguage.toLowerCase() === "serbian";
-    const modelId = isSerbian ? "gemini-3-flash-preview" : TRANSLATION_MODEL;
+    // Use the default translation model for all languages
+    const modelId = TRANSLATION_MODEL;
     
     let prompt = `You are a professional legal translator. Translate the following legal document text into ${targetLanguage}.
     Maintain a formal, authoritative, and professional tone suitable for legal proceedings.
@@ -250,10 +249,8 @@ export async function translateBatchLegalText(
       : getLanguageName(config.sourceLanguage);
   const targetLangDisplay = getLanguageName(config.targetLanguage);
 
-  // Use gemini-3-flash-preview for Serbian translations, otherwise use default model
-  const modelToUse = config.targetLanguage === "sr"
-    ? "gemini-3-flash-preview"
-    : TRANSLATION_MODEL;
+  // Use the default translation model for all languages
+  const modelToUse = TRANSLATION_MODEL;
 
   const excludeNote = config.excludedTerms.length > 0
     ? `\nPRESERVE UNCHANGED: ${config.excludedTerms.join(", ")}`
