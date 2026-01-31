@@ -1,7 +1,12 @@
 import { BatchTranslationResponse, TranslationConfig, LegalDocumentContext, LegalSection, LegalSectionType } from "../types";
 
-// Helper function to call the serverless API
-async function callGeminiAPI(model: string, contents: string, config?: any): Promise<string> {
+// Model constants
+const TRANSLATION_MODEL = "gemini-2.5-flash-lite";
+const FALLBACK_MODEL = "gemini-2.5-flash";
+const MAX_RETRIES = 3;
+
+// Helper function to call the serverless API with a single attempt
+async function attemptAPICall(model: string, contents: string, config?: any): Promise<string> {
   const response = await fetch('/api/translate', {
     method: 'POST',
     headers: {
@@ -23,8 +28,48 @@ async function callGeminiAPI(model: string, contents: string, config?: any): Pro
   return data.text || '';
 }
 
-// Model for translation pipeline
-const TRANSLATION_MODEL = "gemini-2.5-flash-lite";
+// Helper function to call the serverless API with retry and fallback logic
+async function callGeminiAPI(model: string, contents: string, config?: any): Promise<string> {
+  let lastError: Error | null = null;
+
+  // Try the requested model up to MAX_RETRIES times
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      console.log(`Attempting API call with ${model} (attempt ${attempt}/${MAX_RETRIES})`);
+      const result = await attemptAPICall(model, contents, config);
+      if (attempt > 1) {
+        console.log(`Successfully completed after ${attempt} attempts`);
+      }
+      return result;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Unknown error occurred');
+      console.warn(`Attempt ${attempt}/${MAX_RETRIES} failed for ${model}:`, lastError.message);
+
+      // Wait before retrying (exponential backoff: 1s, 2s, 4s)
+      if (attempt < MAX_RETRIES) {
+        const delayMs = Math.pow(2, attempt - 1) * 1000;
+        console.log(`Waiting ${delayMs}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  // If all retries failed and we're not already using the fallback model, try fallback
+  if (model !== FALLBACK_MODEL) {
+    console.warn(`All ${MAX_RETRIES} attempts failed with ${model}. Falling back to ${FALLBACK_MODEL}...`);
+    try {
+      const result = await attemptAPICall(FALLBACK_MODEL, contents, config);
+      console.log(`Successfully completed using fallback model ${FALLBACK_MODEL}`);
+      return result;
+    } catch (fallbackError) {
+      console.error(`Fallback to ${FALLBACK_MODEL} also failed:`, fallbackError);
+      throw new Error(`Translation failed after ${MAX_RETRIES} retries and fallback: ${lastError?.message}`);
+    }
+  }
+
+  // If we were already using the fallback model, just throw the error
+  throw new Error(`Translation failed after ${MAX_RETRIES} retries: ${lastError?.message}`);
+}
 
 // Language display names
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -40,6 +85,7 @@ const LANGUAGE_NAMES: Record<string, string> = {
   ko: "Korean",
   ar: "Arabic",
   ru: "Russian",
+  sr: "Serbian",
 };
 
 /**
@@ -51,19 +97,23 @@ export function getLanguageName(code: string): string {
 
 /**
  * Translates the provided legal text using the Gemini Flash model.
- * 
+ *
  * @param text The legal text to translate.
  * @param targetLanguage The target language (e.g., "Spanish").
  * @param excludedText Text to exclude from translation (optional).
+ * @param targetLanguageCode Optional language code to determine model (e.g., "sr" for Serbian).
  * @returns The translated text.
  */
 export const translateLegalText = async (
-  text: string, 
+  text: string,
   targetLanguage: string = "Spanish",
-  excludedText?: string
+  excludedText?: string,
+  targetLanguageCode?: string
 ): Promise<string> => {
   try {
-    const modelId = "gemini-3-flash-preview";
+    // Use gemini-3-flash-preview for Serbian, otherwise use default translation model
+    const isSerbian = targetLanguageCode === "sr" || targetLanguage.toLowerCase() === "serbian";
+    const modelId = isSerbian ? "gemini-3-flash-preview" : TRANSLATION_MODEL;
     
     let prompt = `You are a professional legal translator. Translate the following legal document text into ${targetLanguage}.
     Maintain a formal, authoritative, and professional tone suitable for legal proceedings.
@@ -200,6 +250,11 @@ export async function translateBatchLegalText(
       : getLanguageName(config.sourceLanguage);
   const targetLangDisplay = getLanguageName(config.targetLanguage);
 
+  // Use gemini-3-flash-preview for Serbian translations, otherwise use default model
+  const modelToUse = config.targetLanguage === "sr"
+    ? "gemini-3-flash-preview"
+    : TRANSLATION_MODEL;
+
   const excludeNote = config.excludedTerms.length > 0
     ? `\nPRESERVE UNCHANGED: ${config.excludedTerms.join(", ")}`
     : "";
@@ -223,7 +278,7 @@ Return EXACTLY ${texts.length} translations as JSON: {"translations":["...",...]
 INPUT:
 ${JSON.stringify(texts)}`;
 
-  const responseText = await callGeminiAPI(TRANSLATION_MODEL, prompt, {
+  const responseText = await callGeminiAPI(modelToUse, prompt, {
     temperature: config.modelTemperature,
     maxOutputTokens: 16384,
   });

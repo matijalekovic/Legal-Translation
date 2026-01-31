@@ -272,7 +272,7 @@ const App: React.FC = () => {
           }
         } else {
           // For non-DOCX files, use the original simple translation
-          const translatedText = await translateLegalText(doc.content, getLanguageName(targetLanguage), settings.excludedText);
+          const translatedText = await translateLegalText(doc.content, getLanguageName(targetLanguage), settings.excludedText, targetLanguage);
 
           setTranslatedDocs(prev => prev.map(td => {
             if (td.originalDocId === doc.id) {
