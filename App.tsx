@@ -105,11 +105,10 @@ const App: React.FC = () => {
     setUser(userData);
   };
 
-  const handleUpload = useCallback(async (files: FileList) => {
+  const handleUpload = useCallback(async (files: File[]) => {
     const newDocs: UploadedDocument[] = [];
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    for (const file of files) {
       const { text, preview } = await extractContent(file);
 
       newDocs.push({

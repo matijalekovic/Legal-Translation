@@ -4,7 +4,7 @@ import { DocumentSettings, UploadedDocument } from '../types';
 
 interface LeftPanelProps {
   documents: UploadedDocument[];
-  onUpload: (files: FileList) => void;
+  onUpload: (files: File[]) => void;
   onRemove: (id: string) => void;
   onSelect: (id: string) => void;
   selectedDocId: string | null;
@@ -24,8 +24,9 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      onUpload(e.target.files);
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length > 0) {
+      onUpload(files);
     }
     // Reset input to allow selecting same file again
     if (fileInputRef.current) {
@@ -35,8 +36,9 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      onUpload(e.dataTransfer.files);
+    const files = e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
+    if (files.length > 0) {
+      onUpload(files);
     }
   };
 
