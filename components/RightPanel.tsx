@@ -44,7 +44,14 @@ const RightPanel: React.FC<RightPanelProps> = ({
     onSelectTranslated,
     selectedTranslatedDocId
 }) => {
-    const completedCount = translatedDocs.filter(d => d.status === 'completed').length;
+    // Get IDs of current documents in the left panel
+    const currentDocIds = new Set(documents.map(d => d.id));
+
+    // Only count translations for documents that are CURRENTLY in the left panel
+    const completedCount = translatedDocs.filter(td =>
+        td.status === 'completed' && currentDocIds.has(td.originalDocId)
+    ).length;
+
     const totalCount = documents.length;
     const isAllCompleted = totalCount > 0 && completedCount === totalCount;
     const hasDocuments = documents.length > 0;
