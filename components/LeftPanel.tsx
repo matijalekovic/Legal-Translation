@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { UploadCloud, FileText, X, CheckSquare, Square, FileType } from 'lucide-react';
+import { UploadCloud, FileText, X, CheckSquare, Square } from 'lucide-react';
 import { DocumentSettings, UploadedDocument } from '../types';
 
 interface LeftPanelProps {
@@ -7,7 +7,7 @@ interface LeftPanelProps {
   onUpload: (files: File[]) => void;
   onRemove: (id: string) => void;
   onSelect: (id: string) => void;
-  selectedDocIds: string[];
+  selectedDocId: string | null;
   settings: DocumentSettings;
   onSettingsChange: (settings: DocumentSettings) => void;
 }
@@ -17,7 +17,7 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
   onUpload,
   onRemove,
   onSelect,
-  selectedDocIds,
+  selectedDocId,
   settings,
   onSettingsChange
 }) => {
@@ -77,13 +77,13 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
   };
 
   return (
-    <div className="w-full md:w-[280px] h-[calc(100vh-56px)] bg-lightGray-100 border-r border-lightGray-200 flex flex-col shrink-0">
+    <div className="w-full md:w-[280px] lg:w-[320px] h-[calc(100vh-56px)] lg:h-[calc(100vh-64px)] bg-lightGray-100 border-r border-lightGray-200 flex flex-col shrink-0">
 
       {/* Header */}
-      <div className="h-12 bg-white border-b border-lightGray-200 px-3 flex items-center justify-between shrink-0">
-        <h2 className="text-navy-900 text-sm font-semibold">Upload Queue</h2>
-        <span className="bg-lightGray-100 text-slate-500 text-xs px-1.5 py-0.5 rounded-full border border-lightGray-200">
-          {documents.length}
+      <div className="h-12 lg:h-14 bg-white border-b border-lightGray-200 px-3 lg:px-4 flex items-center justify-between shrink-0">
+        <h2 className="text-navy-900 text-sm lg:text-base font-semibold">Upload Queue</h2>
+        <span className="bg-lightGray-100 text-slate-500 text-xs px-1.5 lg:px-2 py-0.5 lg:py-1 rounded-full border border-lightGray-200">
+          {documents.length} <span className="hidden lg:inline">documents</span>
         </span>
       </div>
 
@@ -91,9 +91,9 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
       <div className="flex-grow overflow-y-auto custom-scrollbar flex flex-col">
         
         {/* Upload Area */}
-        <div className="p-3 shrink-0">
+        <div className="p-3 lg:p-4 shrink-0">
             <div
-                className="h-[100px] border-2 border-dashed border-lightGray-300 rounded-lg bg-white hover:bg-blue-50 hover:border-profBlue-800 transition-all duration-200 cursor-pointer flex flex-col items-center justify-center p-3 text-center group"
+                className="h-[100px] lg:h-[140px] border-2 border-dashed border-lightGray-300 rounded-lg bg-white hover:bg-blue-50 hover:border-profBlue-800 transition-all duration-200 cursor-pointer flex flex-col items-center justify-center p-3 lg:p-4 text-center group"
                 onClick={openFileDialog}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
@@ -106,64 +106,53 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
                     accept=".docx,.txt,.md"
                     onChange={handleFileChange}
                 />
-                <div className="w-9 h-9 rounded-full bg-lightGray-100 flex items-center justify-center mb-2 group-hover:bg-blue-100 group-hover:scale-110 transition-all duration-200">
-                    <UploadCloud className="text-slate-500 w-5 h-5 group-hover:text-profBlue-800" />
+                <div className="w-9 h-9 lg:w-12 lg:h-12 rounded-full bg-lightGray-100 flex items-center justify-center mb-2 lg:mb-3 group-hover:bg-blue-100 group-hover:scale-110 transition-all duration-200">
+                    <UploadCloud className="text-slate-500 w-5 h-5 lg:w-6 lg:h-6 group-hover:text-profBlue-800" />
                 </div>
-                <p className="text-xs text-navy-900 font-medium group-hover:text-profBlue-800 transition-colors">Click to upload or drag files</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">.docx format supported</p>
+                <p className="text-xs lg:text-sm text-navy-900 font-medium group-hover:text-profBlue-800 transition-colors">Click to upload or drag files</p>
+                <p className="text-[10px] lg:text-xs text-slate-400 mt-0.5 lg:mt-1">.docx format supported</p>
             </div>
         </div>
 
         {/* Document List */}
-        <div className="px-3 pb-3 space-y-2 flex-grow">
+        <div className="px-3 lg:px-4 pb-3 lg:pb-4 space-y-2 lg:space-y-3 flex-grow">
             {documents.length === 0 && (
-                <div className="text-center py-6">
-                    <p className="text-xs text-slate-400 italic">No documents in queue</p>
+                <div className="text-center py-6 lg:py-8">
+                    <p className="text-xs lg:text-sm text-slate-400 italic">No documents in queue</p>
                 </div>
             )}
-            {documents.map((doc) => {
-                const isSelected = selectedDocIds.includes(doc.id);
-                return (
+            {documents.map((doc) => (
                 <div
                     key={doc.id}
                     onClick={() => onSelect(doc.id)}
                     className={`
-                        group relative w-full p-2 rounded-lg border cursor-pointer transition-all duration-200 flex items-center gap-2
-                        ${isSelected
+                        group relative w-full p-2 lg:p-3 rounded-lg border cursor-pointer transition-all duration-200 flex items-center gap-2 lg:gap-3
+                        ${selectedDocId === doc.id
                             ? 'bg-blue-50/60 border-profBlue-800 shadow-[0_0_0_1px_rgba(44,82,130,1)] z-10'
                             : 'bg-white border-lightGray-200 hover:border-profBlue-400 hover:shadow-md'}
                     `}
                 >
-                    {/* Selection Indicator - Checkbox */}
-                    <div className="shrink-0">
-                        {isSelected ? (
-                            <CheckSquare className="w-4 h-4 text-profBlue-800" />
-                        ) : (
-                            <Square className="w-4 h-4 text-slate-300 group-hover:text-profBlue-600 transition-colors" />
-                        )}
-                    </div>
-
                     {/* Icon Container */}
                     <div className={`
-                        w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-200
-                        ${isSelected ? 'bg-profBlue-100' : 'bg-slate-50 group-hover:bg-blue-50 border border-slate-100'}
+                        w-8 h-8 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-200
+                        ${selectedDocId === doc.id ? 'bg-profBlue-100' : 'bg-slate-50 group-hover:bg-blue-50 border border-slate-100'}
                     `}>
-                        <FileText className={`w-4 h-4 ${isSelected ? 'text-profBlue-800' : 'text-slate-400 group-hover:text-profBlue-600'}`} />
+                        <FileText className={`w-4 h-4 lg:w-5 lg:h-5 ${selectedDocId === doc.id ? 'text-profBlue-800' : 'text-slate-400 group-hover:text-profBlue-600'}`} />
                     </div>
 
                     {/* Content */}
-                    <div className="flex-grow min-w-0 pr-5">
+                    <div className="flex-grow min-w-0 pr-5 lg:pr-6">
                         <h4
-                          className={`text-xs font-semibold truncate leading-tight mb-1 ${isSelected ? 'text-profBlue-900' : 'text-navy-900'}`}
+                          className={`text-xs lg:text-sm font-semibold truncate leading-tight mb-1 lg:mb-1.5 ${selectedDocId === doc.id ? 'text-profBlue-900' : 'text-navy-900'}`}
                           title={doc.name}
                         >
                             {doc.name}
                         </h4>
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1 py-0.5 rounded border border-slate-200 tracking-wide">
+                        <div className="flex items-center gap-1.5 lg:gap-2">
+                            <span className="text-[9px] lg:text-[10px] font-bold text-slate-500 bg-slate-100 px-1 lg:px-1.5 py-0.5 rounded border border-slate-200 tracking-wide">
                                 {doc.name.split('.').pop()?.toUpperCase().substring(0, 4) || 'FILE'}
                             </span>
-                            <span className="text-[10px] text-slate-400">
+                            <span className="text-[10px] lg:text-xs text-slate-400">
                                 {formatFileSize(doc.size)}
                             </span>
                         </div>
@@ -172,54 +161,53 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
                     {/* Actions */}
                     <button
                         onClick={(e) => { e.stopPropagation(); onRemove(doc.id); }}
-                        className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded-full hover:bg-red-50 text-slate-400 hover:text-error-red absolute right-1.5 top-1/2 -translate-y-1/2"
+                        className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 lg:p-1.5 rounded-full hover:bg-red-50 text-slate-400 hover:text-error-red absolute right-1.5 lg:right-2 top-1/2 -translate-y-1/2"
                         title="Remove document"
                         aria-label="Remove document"
                     >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
                     </button>
                 </div>
-                );
-            })}
+            ))}
         </div>
 
       </div>
 
       {/* Settings Section (Fixed at bottom) */}
-      <div className="shrink-0 bg-white border-t border-lightGray-200 p-3 h-[180px]">
-        <h3 className="text-xs font-semibold text-navy-900 mb-2 flex items-center gap-2">
+      <div className="shrink-0 bg-white border-t border-lightGray-200 p-3 lg:p-4 h-[180px] lg:h-[220px]">
+        <h3 className="text-xs lg:text-sm font-semibold text-navy-900 mb-2 lg:mb-3 flex items-center gap-2">
             Translation Options
         </h3>
-        <div className="space-y-1.5">
-            <label className="flex items-center space-x-1.5 cursor-pointer group select-none">
+        <div className="space-y-1.5 lg:space-y-2.5">
+            <label className="flex items-center space-x-1.5 lg:space-x-2 cursor-pointer group select-none">
                 <div onClick={() => toggleSetting('translateHeaders')} className="relative">
                     {settings.translateHeaders
-                        ? <CheckSquare className="w-4 h-4 text-profBlue-800" />
-                        : <Square className="w-4 h-4 text-slate-300 group-hover:text-profBlue-600 transition-colors" />}
+                        ? <CheckSquare className="w-4 h-4 lg:w-5 lg:h-5 text-profBlue-800" />
+                        : <Square className="w-4 h-4 lg:w-5 lg:h-5 text-slate-300 group-hover:text-profBlue-600 transition-colors" />}
                 </div>
-                <span className="text-xs text-slate-700 group-hover:text-navy-900 transition-colors">Translate headers & footers</span>
+                <span className="text-xs lg:text-sm text-slate-700 group-hover:text-navy-900 transition-colors">Translate headers & footers</span>
             </label>
-            <label className="flex items-center space-x-1.5 cursor-pointer group select-none">
+            <label className="flex items-center space-x-1.5 lg:space-x-2 cursor-pointer group select-none">
                 <div onClick={() => toggleSetting('translateFootnotes')} className="relative">
                     {settings.translateFootnotes
-                        ? <CheckSquare className="w-4 h-4 text-profBlue-800" />
-                        : <Square className="w-4 h-4 text-slate-300 group-hover:text-profBlue-600 transition-colors" />}
+                        ? <CheckSquare className="w-4 h-4 lg:w-5 lg:h-5 text-profBlue-800" />
+                        : <Square className="w-4 h-4 lg:w-5 lg:h-5 text-slate-300 group-hover:text-profBlue-600 transition-colors" />}
                 </div>
-                <span className="text-xs text-slate-700 group-hover:text-navy-900 transition-colors">Translate footnotes</span>
+                <span className="text-xs lg:text-sm text-slate-700 group-hover:text-navy-900 transition-colors">Translate footnotes</span>
             </label>
-            <label className="flex items-center space-x-1.5 cursor-pointer group select-none">
+            <label className="flex items-center space-x-1.5 lg:space-x-2 cursor-pointer group select-none">
                 <div onClick={() => toggleSetting('preserveFormatting')} className="relative">
                     {settings.preserveFormatting
-                        ? <CheckSquare className="w-4 h-4 text-profBlue-800" />
-                        : <Square className="w-4 h-4 text-slate-300 group-hover:text-profBlue-600 transition-colors" />}
+                        ? <CheckSquare className="w-4 h-4 lg:w-5 lg:h-5 text-profBlue-800" />
+                        : <Square className="w-4 h-4 lg:w-5 lg:h-5 text-slate-300 group-hover:text-profBlue-600 transition-colors" />}
                 </div>
-                <span className="text-xs text-slate-700 group-hover:text-navy-900 transition-colors">Preserve formatting</span>
+                <span className="text-xs lg:text-sm text-slate-700 group-hover:text-navy-900 transition-colors">Preserve formatting</span>
             </label>
 
-            <div className="mt-2 pt-1.5">
-                <label className="block text-[10px] font-medium text-slate-500 mb-1 uppercase tracking-wide">Exclude Words</label>
+            <div className="mt-2 lg:mt-3 pt-1.5 lg:pt-2">
+                <label className="block text-[10px] lg:text-xs font-medium text-slate-500 mb-1 lg:mb-1.5 uppercase tracking-wide">Exclude Words</label>
                 <textarea
-                    className="w-full h-10 bg-lightGray-100 border border-lightGray-300 rounded-md px-2 py-1.5 text-[10px] font-mono text-navy-900 focus:border-profBlue-800 focus:ring-1 focus:ring-profBlue-800 focus:outline-none resize-none placeholder:text-slate-400 transition-all"
+                    className="w-full h-10 lg:h-12 bg-lightGray-100 border border-lightGray-300 rounded-md px-2 lg:px-3 py-1.5 lg:py-2 text-[10px] lg:text-xs font-mono text-navy-900 focus:border-profBlue-800 focus:ring-1 focus:ring-profBlue-800 focus:outline-none resize-none placeholder:text-slate-400 transition-all"
                     placeholder="E.g. CompanyName, BrandX"
                     value={settings.excludedText}
                     onChange={handleExcludedTextChange}

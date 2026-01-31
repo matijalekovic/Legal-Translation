@@ -59,7 +59,7 @@ const App: React.FC = () => {
 
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [translatedDocs, setTranslatedDocs] = useState<TranslatedDocument[]>([]);
-  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTranslatingFile, setCurrentTranslatingFile] = useState<string | null>(null);
@@ -97,7 +97,7 @@ const App: React.FC = () => {
     // Clear all data on logout
     setDocuments([]);
     setTranslatedDocs([]);
-    setSelectedDocIds([]);
+    setSelectedDocId(null);
     setSelectedTranslatedDocId(null);
   };
 
@@ -125,41 +125,30 @@ const App: React.FC = () => {
 
     setDocuments(prev => [...prev, ...newDocs]);
     // Select the first new document if none selected
-    if (selectedDocIds.length === 0 && newDocs.length > 0) {
-      setSelectedDocIds([newDocs[0].id]);
+    if (!selectedDocId && newDocs.length > 0) {
+      setSelectedDocId(newDocs[0].id);
     }
-  }, [selectedDocIds]);
+  }, [selectedDocId]);
 
   const handleRemoveDocument = (id: string) => {
     setDocuments(prev => prev.filter(d => d.id !== id));
-    setSelectedDocIds(prev => prev.filter(docId => docId !== id));
+    if (selectedDocId === id) setSelectedDocId(null);
   };
 
-  // Handle selecting an original document (toggles selection, clears translated selection)
+  // Handle selecting an original document (for preview only, clears translated selection)
   const handleSelectOriginal = (id: string) => {
-    setSelectedDocIds(prev =>
-      prev.includes(id)
-        ? prev.filter(docId => docId !== id)  // Deselect if already selected
-        : [...prev, id]                        // Add to selection
-    );
+    setSelectedDocId(id);
     setSelectedTranslatedDocId(null);
   };
 
-  // Handle selecting a translated document (clears original selections)
+  // Handle selecting a translated document (clears original selection)
   const handleSelectTranslated = (id: string) => {
     setSelectedTranslatedDocId(id);
-    setSelectedDocIds([]);
+    setSelectedDocId(null);
   };
 
   const handleTranslateAll = async () => {
     if (documents.length === 0) return;
-
-    // Determine which documents to translate: selected ones if any, otherwise all
-    const docsToTranslate = selectedDocIds.length > 0
-      ? documents.filter(doc => selectedDocIds.includes(doc.id))
-      : documents;
-
-    if (docsToTranslate.length === 0) return;
 
     // Create abort controller for cancellation
     abortControllerRef.current = new AbortController();
@@ -171,7 +160,7 @@ const App: React.FC = () => {
 
     // Create placeholders for translated docs (append to existing, don't replace)
     const langPrefix = targetLanguage.toUpperCase();
-    const newTranslatedDocs: TranslatedDocument[] = docsToTranslate.map(doc => ({
+    const newTranslatedDocs: TranslatedDocument[] = documents.map(doc => ({
       id: `trans-${doc.id}`,
       originalDocId: doc.id,
       name: `${langPrefix}_${doc.name}`,
@@ -186,11 +175,11 @@ const App: React.FC = () => {
     // Append new translations to existing ones (preserve previously translated docs)
     setTranslatedDocs(prev => [...prev, ...newTranslatedDocs]);
 
-    const totalDocs = docsToTranslate.length;
+    const totalDocs = documents.length;
     let completed = 0;
     const newBlobs = new Map<string, Blob>();
 
-    for (const doc of docsToTranslate) {
+    for (const doc of documents) {
       if (signal.aborted) break;
 
       setCurrentTranslatingFile(doc.name);
@@ -268,7 +257,7 @@ const App: React.FC = () => {
 
             // Remove successfully translated document from left panel
             setDocuments(prev => prev.filter(d => d.id !== doc.id));
-            setSelectedDocIds(prev => prev.filter(id => id !== doc.id));
+            if (selectedDocId === doc.id) setSelectedDocId(null);
           } else {
             setTranslatedDocs(prev => prev.map(td => {
               if (td.originalDocId === doc.id) {
@@ -374,10 +363,7 @@ const App: React.FC = () => {
     });
   };
 
-  // Get the first selected document for preview
-  const selectedDocument = selectedDocIds.length > 0
-    ? documents.find(d => d.id === selectedDocIds[0])
-    : undefined;
+  const selectedDocument = documents.find(d => d.id === selectedDocId);
   const selectedTranslatedDoc = translatedDocs.find(d => d.id === selectedTranslatedDocId);
 
   // Determine what to show in the canvas
@@ -425,7 +411,7 @@ const App: React.FC = () => {
           onUpload={handleUpload}
           onRemove={handleRemoveDocument}
           onSelect={handleSelectOriginal}
-          selectedDocIds={selectedDocIds}
+          selectedDocId={selectedDocId}
           settings={settings}
           onSettingsChange={setSettings}
         />
