@@ -77,7 +77,7 @@ const App: React.FC = () => {
   const [translationProgress, setTranslationProgress] = useState<TranslationProgress | null>(null);
 
   // Translation mode state ('fast' or 'professional')
-  const [translationMode, setTranslationMode] = useState<'fast' | 'professional'>('professional');
+  const [translationMode, setTranslationMode] = useState<'fast' | 'professional'>('fast');
 
   // Language selection state
   const [sourceLanguage, setSourceLanguage] = useState('auto');
