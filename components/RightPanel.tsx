@@ -1,177 +1,232 @@
 import React from 'react';
-import { UploadedDocument, TranslatedDocument } from '../types';
-import { Languages, Download, CheckCircle, Loader2, FileText, AlertTriangle } from 'lucide-react';
+import { UploadedDocument, TranslatedDocument, TranslationProgress } from '../types';
+import { Languages, Download, CheckCircle, Loader2, FileText, AlertTriangle, X } from 'lucide-react';
 
 interface RightPanelProps {
-  documents: UploadedDocument[];
-  translatedDocs: TranslatedDocument[];
-  isTranslating: boolean;
-  progress: number;
-  currentTranslatingFile: string | null;
-  onTranslateAll: () => void;
-  onDownloadAll: () => void;
-  onDownloadSingle: (doc: TranslatedDocument) => void;
+    documents: UploadedDocument[];
+    translatedDocs: TranslatedDocument[];
+    isTranslating: boolean;
+    progress: number;
+    currentTranslatingFile: string | null;
+    translationProgress: TranslationProgress | null;
+    onTranslateAll: () => void;
+    onDownloadAll: () => void;
+    onDownloadSingle: (doc: TranslatedDocument) => void;
+    onCancelTranslation: () => void;
+    onSelectTranslated: (docId: string) => void;
+    selectedTranslatedDocId: string | null;
 }
 
+const getPhaseLabel = (phase: TranslationProgress['phase']): string => {
+    switch (phase) {
+        case 'parsing': return 'Parsing document...';
+        case 'analyzing': return 'Analyzing context...';
+        case 'translating': return 'Translating...';
+        case 'rebuilding': return 'Rebuilding document...';
+        case 'complete': return 'Complete!';
+        case 'error': return 'Error';
+        case 'cancelled': return 'Cancelled';
+        default: return 'Processing...';
+    }
+};
+
 const RightPanel: React.FC<RightPanelProps> = ({
-  documents,
-  translatedDocs,
-  isTranslating,
-  progress,
-  currentTranslatingFile,
-  onTranslateAll,
-  onDownloadAll,
-  onDownloadSingle
+    documents,
+    translatedDocs,
+    isTranslating,
+    progress,
+    currentTranslatingFile,
+    translationProgress,
+    onTranslateAll,
+    onDownloadAll,
+    onDownloadSingle,
+    onCancelTranslation,
+    onSelectTranslated,
+    selectedTranslatedDocId
 }) => {
-  const completedCount = translatedDocs.filter(d => d.status === 'completed').length;
-  const totalCount = documents.length;
-  const isAllCompleted = totalCount > 0 && completedCount === totalCount;
-  const hasDocuments = documents.length > 0;
+    const completedCount = translatedDocs.filter(d => d.status === 'completed').length;
+    const totalCount = documents.length;
+    const isAllCompleted = totalCount > 0 && completedCount === totalCount;
+    const hasDocuments = documents.length > 0;
 
-  return (
-    <div className="w-full md:w-[320px] h-[calc(100vh-64px)] bg-lightGray-100 border-l border-lightGray-200 flex flex-col shrink-0">
-      
-      {/* Header */}
-      <div className="h-14 bg-white border-b border-lightGray-200 px-4 flex items-center justify-between shrink-0">
-        <h2 className="text-navy-900 text-base font-semibold">Translated Docs</h2>
-        {hasDocuments && (
-            <span className="text-xs text-slate-500 font-medium">
-            {completedCount}/{totalCount} complete
-            </span>
-        )}
-      </div>
+    return (
+        <div className="w-full md:w-[320px] h-[calc(100vh-64px)] bg-lightGray-100 border-l border-lightGray-200 flex flex-col shrink-0">
 
-      <div className="flex-grow overflow-y-auto custom-scrollbar p-4">
-        
-        {/* Translate Button */}
-        <button
-            onClick={onTranslateAll}
-            disabled={isTranslating || !hasDocuments || isAllCompleted}
-            className={`
+            {/* Header */}
+            <div className="h-14 bg-white border-b border-lightGray-200 px-4 flex items-center justify-between shrink-0">
+                <h2 className="text-navy-900 text-base font-semibold">Translated Docs</h2>
+                {hasDocuments && (
+                    <span className="text-xs text-slate-500 font-medium">
+                        {completedCount}/{totalCount} complete
+                    </span>
+                )}
+            </div>
+
+            <div className="flex-grow overflow-y-auto custom-scrollbar p-4">
+
+                {/* Translate Button */}
+                <button
+                    onClick={onTranslateAll}
+                    disabled={isTranslating || !hasDocuments || isAllCompleted}
+                    className={`
                 w-full h-14 rounded-lg flex items-center justify-center space-x-2 font-semibold text-white shadow-md transition-all duration-200 mb-4
                 ${isTranslating || !hasDocuments || isAllCompleted
-                    ? 'bg-slate-300 cursor-not-allowed shadow-none' 
-                    : 'bg-gradient-to-r from-profBlue-800 to-profBlue-600 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]'}
+                            ? 'bg-slate-300 cursor-not-allowed shadow-none'
+                            : 'bg-gradient-to-r from-profBlue-800 to-profBlue-600 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]'}
             `}
-        >
-            {isTranslating ? (
-                <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Processing...</span>
-                </>
-            ) : (
-                <>
-                    <Languages className="w-5 h-5" />
-                    <span>{isAllCompleted ? 'Translation Complete' : 'TRANSLATE ALL'}</span>
-                </>
-            )}
-        </button>
+                >
+                    {isTranslating ? (
+                        <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <span>Processing...</span>
+                        </>
+                    ) : (
+                        <>
+                            <Languages className="w-5 h-5" />
+                            <span>{isAllCompleted ? 'Translation Complete' : 'TRANSLATE ALL'}</span>
+                        </>
+                    )}
+                </button>
 
-        {/* Progress Indicator */}
-        {isTranslating && (
-            <div className="bg-white border border-lightGray-200 rounded-md p-4 mb-4 shadow-sm">
-                <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-profBlue-800">Translating...</span>
-                    <span className="text-xs text-slate-500 font-mono truncate max-w-[120px]" title={currentTranslatingFile || ''}>
-                        {currentTranslatingFile}
-                    </span>
-                </div>
-                <div className="h-2 bg-lightGray-200 rounded-full overflow-hidden">
-                    <div 
-                        className="h-full bg-progress-blue transition-all duration-300 ease-out relative overflow-hidden"
-                        style={{ width: `${progress}%` }}
-                    >
-                        <div className="absolute top-0 left-0 bottom-0 right-0 bg-white/20 animate-[pulse_2s_infinite]"></div>
-                    </div>
-                </div>
-                <div className="mt-2 text-center">
-                    <span className="text-lg font-bold text-profBlue-800">{Math.round(progress)}%</span>
-                </div>
-            </div>
-        )}
-
-        {/* Download All Button */}
-        <button
-            onClick={onDownloadAll}
-            disabled={completedCount === 0}
-            className={`
-                w-full h-11 rounded-md border-2 flex items-center justify-center space-x-2 font-medium text-sm transition-all duration-200 mb-6
-                ${completedCount === 0 
-                    ? 'border-slate-200 text-slate-300 cursor-not-allowed' 
-                    : 'border-profBlue-800 text-profBlue-800 bg-white hover:bg-blue-50'}
-            `}
-        >
-            <Download className="w-4 h-4" />
-            <span>Download All Translations</span>
-        </button>
-
-        {/* List of Translated Docs */}
-        <div className="space-y-3">
-            {translatedDocs.length === 0 && !isTranslating && (
-                <div className="text-center py-10 opacity-50">
-                     <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <FileText className="w-8 h-8 text-slate-400" />
-                     </div>
-                     <p className="text-sm text-slate-500">Translations will appear here</p>
-                </div>
-            )}
-
-            {translatedDocs.map((doc) => (
-                <div key={doc.id} className="bg-white border border-lightGray-200 rounded-md p-3 hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2 overflow-hidden">
-                            {doc.status === 'error' ? (
-                                <AlertTriangle className="w-4 h-4 text-error-red shrink-0" />
-                            ) : (
-                                <FileText className="w-4 h-4 text-success-green shrink-0" />
-                            )}
-                            <span className="text-[13px] font-mono text-navy-900 truncate" title={doc.name}>{doc.name}</span>
+                {/* Progress Indicator */}
+                {isTranslating && (
+                    <div className="bg-white border border-lightGray-200 rounded-md p-4 mb-4 shadow-sm">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-medium text-profBlue-800">
+                                {translationProgress ? getPhaseLabel(translationProgress.phase) : 'Processing...'}
+                            </span>
+                            <button
+                                onClick={onCancelTranslation}
+                                className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-error-red hover:bg-error-bg transition-colors"
+                                title="Cancel translation"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
                         </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
-                         <span>{doc.languageFrom} → {doc.languageTo}</span>
-                         <span>{new Date(doc.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                    </div>
 
-                    <div className="flex items-center justify-between">
-                        {doc.status === 'completed' && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-medium bg-success-bg text-success-text border border-success-green/20">
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                Completed
-                            </span>
-                        )}
-                         {doc.status === 'processing' && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-medium bg-blue-50 text-profBlue-800 border border-profBlue-800/20">
-                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                Processing
-                            </span>
-                        )}
-                        {doc.status === 'error' && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-medium bg-error-bg text-error-red border border-error-red/20">
-                                Failed
-                            </span>
-                        )}
+                        {/* Current file */}
+                        <div className="text-xs text-slate-500 font-mono truncate mb-2" title={currentTranslatingFile || ''}>
+                            {currentTranslatingFile}
+                        </div>
 
-                        <button 
-                            onClick={() => onDownloadSingle(doc)}
-                            disabled={doc.status !== 'completed'}
-                            className={`w-8 h-8 rounded flex items-center justify-center transition-colors
-                                ${doc.status === 'completed' 
-                                    ? 'bg-blue-50 hover:bg-profBlue-800 hover:text-white text-profBlue-800' 
-                                    : 'bg-slate-100 text-slate-300 cursor-not-allowed'}
-                            `}
+                        {/* Progress bar */}
+                        <div className="h-2 bg-lightGray-200 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-progress-blue transition-all duration-300 ease-out relative overflow-hidden"
+                                style={{ width: `${progress}%` }}
+                            >
+                                <div className="absolute top-0 left-0 bottom-0 right-0 bg-white/20 animate-[pulse_2s_infinite]"></div>
+                            </div>
+                        </div>
+
+                        {/* Detailed progress */}
+                        <div className="mt-2 flex justify-between items-center">
+                            <span className="text-lg font-bold text-profBlue-800">{Math.round(progress)}%</span>
+                            {translationProgress && translationProgress.phase === 'translating' && (
+                                <span className="text-xs text-slate-500">
+                                    Batch {translationProgress.currentBatch}/{translationProgress.totalBatches}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Segment progress for DOCX */}
+                        {translationProgress && translationProgress.totalSegments > 0 && (
+                            <div className="mt-1 text-xs text-slate-400 text-center">
+                                {translationProgress.currentSegment} / {translationProgress.totalSegments} segments
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Download All Button */}
+                <button
+                    onClick={onDownloadAll}
+                    disabled={completedCount === 0}
+                    className={`
+                w-full h-11 rounded-md border-2 flex items-center justify-center space-x-2 font-medium text-sm transition-all duration-200 mb-6
+                ${completedCount === 0
+                            ? 'border-slate-200 text-slate-300 cursor-not-allowed'
+                            : 'border-profBlue-800 text-profBlue-800 bg-white hover:bg-blue-50'}
+            `}
+                >
+                    <Download className="w-4 h-4" />
+                    <span>Download All Translations</span>
+                </button>
+
+                {/* List of Translated Docs */}
+                <div className="space-y-3">
+                    {translatedDocs.length === 0 && !isTranslating && (
+                        <div className="text-center py-10 opacity-50">
+                            <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <FileText className="w-8 h-8 text-slate-400" />
+                            </div>
+                            <p className="text-sm text-slate-500">Translations will appear here</p>
+                        </div>
+                    )}
+
+                    {translatedDocs.map((doc) => (
+                        <div
+                            key={doc.id}
+                            onClick={() => onSelectTranslated(doc.id)}
+                            className={`bg-white border rounded-md p-3 hover:shadow-md transition-all cursor-pointer ${selectedTranslatedDocId === doc.id
+                                    ? 'border-profBlue-800 ring-2 ring-profBlue-800/20 shadow-md'
+                                    : 'border-lightGray-200'
+                                }`}
                         >
-                            <Download className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-            ))}
-        </div>
+                            <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center space-x-2 overflow-hidden">
+                                    {doc.status === 'error' ? (
+                                        <AlertTriangle className="w-4 h-4 text-error-red shrink-0" />
+                                    ) : (
+                                        <FileText className="w-4 h-4 text-success-green shrink-0" />
+                                    )}
+                                    <span className="text-[13px] font-mono text-navy-900 truncate" title={doc.name}>{doc.name}</span>
+                                </div>
+                            </div>
 
-      </div>
-    </div>
-  );
+                            <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
+                                <span>{doc.languageFrom} → {doc.languageTo}</span>
+                                <span>{new Date(doc.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                {doc.status === 'completed' && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-medium bg-success-bg text-success-text border border-success-green/20">
+                                        <CheckCircle className="w-3 h-3 mr-1" />
+                                        Completed
+                                    </span>
+                                )}
+                                {doc.status === 'processing' && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-medium bg-blue-50 text-profBlue-800 border border-profBlue-800/20">
+                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                        Processing
+                                    </span>
+                                )}
+                                {doc.status === 'error' && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-medium bg-error-bg text-error-red border border-error-red/20">
+                                        Failed
+                                    </span>
+                                )}
+
+                                <button
+                                    onClick={() => onDownloadSingle(doc)}
+                                    disabled={doc.status !== 'completed'}
+                                    className={`w-8 h-8 rounded flex items-center justify-center transition-colors
+                                ${doc.status === 'completed'
+                                            ? 'bg-blue-50 hover:bg-profBlue-800 hover:text-white text-profBlue-800'
+                                            : 'bg-slate-100 text-slate-300 cursor-not-allowed'}
+                            `}
+                                >
+                                    <Download className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+            </div>
+        </div>
+    );
 };
 
 export default RightPanel;
