@@ -1,5 +1,6 @@
 import React from 'react';
-import { Scale, ChevronDown } from 'lucide-react';
+import { Scale, ChevronDown, LogOut } from 'lucide-react';
+import Logo from '../images/Logo.svg';
 
 const LANGUAGES = [
   { code: 'auto', name: 'Auto-Detect' },
@@ -58,6 +59,8 @@ interface TopBarProps {
   targetLanguage: string;
   onSourceLanguageChange: (code: string) => void;
   onTargetLanguageChange: (code: string) => void;
+  user?: { email: string; name: string; picture: string };
+  onLogout?: () => void;
 }
 
 const TopBar: React.FC<TopBarProps> = ({
@@ -65,18 +68,14 @@ const TopBar: React.FC<TopBarProps> = ({
   targetLanguage,
   onSourceLanguageChange,
   onTargetLanguageChange,
+  user,
+  onLogout,
 }) => {
   return (
     <div className="h-16 w-full bg-gradient-to-r from-navy-900 to-charcoal-800 flex items-center justify-between px-6 border-b border-gold-100 shadow-md z-20 relative">
-      {/* Left: Logo Area */}
-      <div className="w-[200px] h-12 bg-white/5 rounded flex items-center px-3 space-x-3">
-        <div className="w-8 h-8 rounded bg-gold-500/20 flex items-center justify-center">
-          <Scale className="text-gold-500 w-5 h-5" />
-        </div>
-        <div className="flex flex-col">
-          <span className="text-white text-xs font-semibold tracking-wide">SHIELDS & PARTNERS</span>
-          <span className="text-gray-400 text-[10px] uppercase tracking-wider">Legal Services</span>
-        </div>
+            {/* Left: Logo Area */}
+      <div className="w-[350px] h-full flex items-center">
+        <img src={Logo} alt="Shields & Partners Logo" className="w-48" style={{ maxHeight: 'none' }} />
       </div>
 
       {/* Center: Language Selection + Title */}
@@ -104,8 +103,33 @@ const TopBar: React.FC<TopBarProps> = ({
         />
       </div>
 
-      {/* Right: Spacer for balance */}
-      <div className="w-[200px]"></div>
+      {/* Right: User Info & Logout */}
+      <div className="w-[350px] flex items-center justify-end gap-3 px-4">
+        {user && (
+          <>
+            <div className="flex items-center gap-2">
+              <img
+                src={user.picture}
+                alt={user.name}
+                className="w-8 h-8 rounded-full border-2 border-white/20"
+              />
+              <div className="hidden lg:block">
+                <p className="text-white text-sm font-medium">{user.name}</p>
+                <p className="text-white/50 text-xs">{user.email}</p>
+              </div>
+            </div>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="p-2 rounded-md hover:bg-white/10 transition-colors group"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4 text-white/60 group-hover:text-white/90" />
+              </button>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import mammoth from 'mammoth';
 import {
   UploadedDocument,
@@ -11,10 +11,12 @@ import { translateLegalText, getLanguageName } from './services/geminiService';
 import { parseDocx } from './services/docxParserService';
 import { runTranslationPipeline, DEFAULT_CONFIG } from './services/translationPipelineService';
 import { dataUrlToBlob } from './services/docxRebuilderService';
+import { getStoredUser, clearStoredUser } from './services/authService';
 import TopBar from './components/TopBar';
 import LeftPanel from './components/LeftPanel';
 import CenterCanvas, { PreviewableDocument } from './components/CenterCanvas';
 import RightPanel from './components/RightPanel';
+import Login from './components/Login';
 
 // Helper to extract content and preview from files
 const extractContent = async (file: File): Promise<{ text: string; preview?: string }> => {
@@ -51,6 +53,10 @@ const extractContent = async (file: File): Promise<{ text: string; preview?: str
 };
 
 const App: React.FC = () => {
+  // Authentication state
+  const [user, setUser] = useState<{ email: string; name: string; picture: string } | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [translatedDocs, setTranslatedDocs] = useState<TranslatedDocument[]>([]);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
@@ -75,6 +81,29 @@ const App: React.FC = () => {
   const [targetLanguage, setTargetLanguage] = useState('en');
   const [translatedBlobs, setTranslatedBlobs] = useState<Map<string, Blob>>(new Map());
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Check for stored user on mount
+  useEffect(() => {
+    const storedUser = getStoredUser();
+    if (storedUser) {
+      setUser(storedUser);
+    }
+    setIsCheckingAuth(false);
+  }, []);
+
+  const handleLogout = () => {
+    clearStoredUser();
+    setUser(null);
+    // Clear all data on logout
+    setDocuments([]);
+    setTranslatedDocs([]);
+    setSelectedDocId(null);
+    setSelectedTranslatedDocId(null);
+  };
+
+  const handleLoginSuccess = (userData: { email: string; name: string; picture: string }) => {
+    setUser(userData);
+  };
 
   const handleUpload = useCallback(async (files: FileList) => {
     const newDocs: UploadedDocument[] = [];
@@ -349,6 +378,23 @@ const App: React.FC = () => {
     return undefined;
   };
 
+  // Show loading while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-lightGray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-profBlue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login if not authenticated
+  if (!user) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
     <div className="flex flex-col h-screen bg-lightGray-100 font-sans text-navy-900">
       <TopBar
@@ -356,6 +402,8 @@ const App: React.FC = () => {
         targetLanguage={targetLanguage}
         onSourceLanguageChange={setSourceLanguage}
         onTargetLanguageChange={setTargetLanguage}
+        user={user}
+        onLogout={handleLogout}
       />
 
       <div className="flex flex-col md:flex-row flex-grow overflow-hidden relative">
