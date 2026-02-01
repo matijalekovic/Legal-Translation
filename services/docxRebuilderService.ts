@@ -26,15 +26,18 @@ function cleanupPageBreaks(doc: Document): void {
     }
   }
 
-  // Also remove empty runs that might cause spacing issues
-  const runs = doc.getElementsByTagNameNS(W_NS, "r");
-  const emptyRuns: Element[] = [];
+  console.log(`Removed ${breakElements.length} soft page breaks`);
 
-  for (let i = 0; i < runs.length; i++) {
-    const run = runs[i];
-    const textElements = run.getElementsByTagNameNS(W_NS, "t");
+  // Find and consolidate consecutive empty paragraphs (but keep at least one for spacing)
+  const paragraphs = doc.getElementsByTagNameNS(W_NS, "p");
+  const emptyParasToRemove: Element[] = [];
+  let consecutiveEmptyCount = 0;
 
-    // Check if this run has no text content
+  for (let i = 0; i < paragraphs.length; i++) {
+    const para = paragraphs[i];
+    const textElements = para.getElementsByTagNameNS(W_NS, "t");
+
+    // Check if paragraph is empty
     let hasText = false;
     for (let j = 0; j < textElements.length; j++) {
       if (textElements[j].textContent && textElements[j].textContent.trim().length > 0) {
@@ -43,24 +46,25 @@ function cleanupPageBreaks(doc: Document): void {
       }
     }
 
-    // If run has no text and no other important content (tabs, breaks, etc.), mark for removal
     if (!hasText) {
-      const hasTab = run.getElementsByTagNameNS(W_NS, "tab").length > 0;
-      const hasBreak = run.getElementsByTagNameNS(W_NS, "br").length > 0;
-      const hasDrawing = run.getElementsByTagNameNS(W_NS, "drawing").length > 0;
-
-      if (!hasTab && !hasBreak && !hasDrawing) {
-        emptyRuns.push(run);
+      consecutiveEmptyCount++;
+      // Keep first empty paragraph for spacing, remove subsequent ones
+      if (consecutiveEmptyCount > 1) {
+        emptyParasToRemove.push(para);
       }
+    } else {
+      consecutiveEmptyCount = 0;
     }
   }
 
-  // Remove empty runs
-  for (const run of emptyRuns) {
-    if (run.parentElement) {
-      run.parentElement.removeChild(run);
+  // Remove excessive empty paragraphs
+  for (const para of emptyParasToRemove) {
+    if (para.parentElement) {
+      para.parentElement.removeChild(para);
     }
   }
+
+  console.log(`Removed ${emptyParasToRemove.length} excessive empty paragraphs`);
 }
 
 /**
@@ -106,8 +110,10 @@ export async function rebuildDocx(
       replaceParagraphText(paragraph, translation);
     }
 
-    // Clean up soft page breaks and excessive spacing to prevent empty pages
-    cleanupPageBreaks(doc);
+    // Only clean up page breaks in the main document body, not headers/footers
+    if (xmlPath === 'word/document.xml') {
+      cleanupPageBreaks(doc);
+    }
 
     // Serialize XML back to string
     const serializer = new XMLSerializer();
