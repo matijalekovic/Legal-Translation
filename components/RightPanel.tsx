@@ -16,7 +16,7 @@ const TranslationModeModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
 
             {/* Modal */}
             <div
-                className="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden"
+                className="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
@@ -34,7 +34,7 @@ const TranslationModeModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
                 </div>
 
                 {/* Content */}
-                <div className="p-5 space-y-5">
+                <div className="p-5 space-y-5 overflow-y-auto">
                     {/* Fast Mode */}
                     <div className="border border-lightGray-200 rounded-lg p-4 hover:border-profBlue-800/30 transition-colors">
                         <div className="flex items-center gap-2 mb-2">
@@ -69,7 +69,6 @@ const TranslationModeModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
                                 <Sparkles className="w-4 h-4 text-profBlue-800" />
                             </div>
                             <h4 className="font-semibold text-navy-900">Professional Mode</h4>
-                            <span className="text-[10px] bg-profBlue-800 text-white px-1.5 py-0.5 rounded-full font-medium">RECOMMENDED</span>
                         </div>
                         <p className="text-sm text-slate-600 mb-3">
                             Premium translation with advanced language model for superior accuracy.
