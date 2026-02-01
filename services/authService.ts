@@ -8,7 +8,8 @@ const ALLOWED_EMAILS = [
   'joca.ristovicmilovanovic@gmail.com',
   'matija.lekovic@gmail.com',
   'jristovic@galenika.rs',
-  'predragg.milovanovic@gmail.com'
+  'predragg.milovanovic@gmail.com',
+  'ristovic.svetlana@gmail.com'
   
 ];
 
