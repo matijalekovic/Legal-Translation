@@ -1,6 +1,5 @@
 import JSZip from 'jszip';
 import {
-  ParsedDocx,
   ParsedLegalDocx,
   TextSegment,
   SegmentContext,
@@ -33,13 +32,19 @@ export async function parseDocx(
     { path: 'word/document.xml', location: 'body' },
   ];
 
-  // Find all headers and footers dynamically
+  // Find all headers, footers, and footnotes dynamically
   for (const filename of Object.keys(zip.files)) {
     if (settings.translateHeaders && /^word\/header\d*\.xml$/.test(filename)) {
       filesToParse.push({ path: filename, location: 'header' });
     }
-    if (settings.translateFootnotes && /^word\/footer\d*\.xml$/.test(filename)) {
+    if (settings.translateHeaders && /^word\/footer\d*\.xml$/.test(filename)) {
       filesToParse.push({ path: filename, location: 'footer' });
+    }
+    if (settings.translateFootnotes && filename === 'word/footnotes.xml') {
+      filesToParse.push({ path: filename, location: 'footnote' });
+    }
+    if (settings.translateFootnotes && filename === 'word/endnotes.xml') {
+      filesToParse.push({ path: filename, location: 'footnote' });
     }
   }
 
@@ -332,8 +337,43 @@ function classifyLegalSection(title: string): LegalSectionType {
 }
 
 /**
+ * Checks if a run element has any formatting properties
+ */
+function runHasFormatting(run: Element | null): boolean {
+  if (!run) return false;
+  const rPr = run.getElementsByTagNameNS(W_NS, 'rPr')[0];
+  if (!rPr) return false;
+
+  // Check for any formatting elements
+  const formattingElements = [
+    'b', 'bCs',           // Bold
+    'i', 'iCs',           // Italic
+    'u',                  // Underline
+    'strike', 'dstrike',  // Strikethrough
+    'color',              // Text color
+    'highlight',          // Highlight color
+    'sz', 'szCs',         // Font size
+    'rFonts',             // Font family
+    'vertAlign',          // Subscript/Superscript
+    'caps', 'smallCaps',  // Caps
+    'shd',                // Shading
+    'outline',            // Outline
+    'shadow',             // Shadow
+    'emboss', 'imprint',  // Emboss/Imprint
+  ];
+
+  for (const elementName of formattingElements) {
+    if (rPr.getElementsByTagNameNS(W_NS, elementName).length > 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Replaces text content in a paragraph while preserving XML structure and formatting
- * Preserves subscript, superscript when detected, otherwise uses simple replacement
+ * Preserves ALL run-level formatting (bold, italic, color, subscript, superscript, etc.)
  */
 export function replaceParagraphText(
   paragraph: Element,
@@ -351,27 +391,19 @@ export function replaceParagraphText(
     return;
   }
 
-  // Check if any runs have subscript or superscript formatting (vertAlign element)
-  // Only use proportional distribution if we detect these special formats
-  let hasSubscriptOrSuperscript = false;
-
+  // Check if any runs have formatting that needs to be preserved
+  let hasFormattedRuns = false;
   for (let i = 0; i < textElements.length; i++) {
     const textEl = textElements[i];
     const run = textEl.parentElement; // <w:r> element
-    if (run) {
-      const rPr = run.getElementsByTagNameNS(W_NS, 'rPr')[0];
-      if (rPr) {
-        const vertAlign = rPr.getElementsByTagNameNS(W_NS, 'vertAlign')[0];
-        if (vertAlign) {
-          hasSubscriptOrSuperscript = true;
-          break;
-        }
-      }
+    if (runHasFormatting(run)) {
+      hasFormattedRuns = true;
+      break;
     }
   }
 
-  // If no subscript/superscript, use simple approach: put all text in first element
-  if (!hasSubscriptOrSuperscript) {
+  // If no formatting detected, use simple approach: put all text in first element
+  if (!hasFormattedRuns) {
     textElements[0].textContent = translatedText;
     // Clear remaining text elements
     for (let i = 1; i < textElements.length; i++) {
@@ -380,18 +412,20 @@ export function replaceParagraphText(
     return;
   }
 
-  // Has subscript/superscript - use proportional distribution to preserve formatting
-  const runs: Array<{ element: Element; originalLength: number }> = [];
+  // Has formatting - use proportional distribution to preserve formatting
+  const runs: Array<{ element: Element; originalLength: number; hasFormatting: boolean }> = [];
   let totalOriginalLength = 0;
 
   for (let i = 0; i < textElements.length; i++) {
     const textEl = textElements[i];
     const originalText = textEl.textContent || '';
     const originalLength = originalText.length;
+    const run = textEl.parentElement;
 
     runs.push({
       element: textEl,
-      originalLength
+      originalLength,
+      hasFormatting: runHasFormatting(run)
     });
 
     totalOriginalLength += originalLength;
@@ -422,12 +456,27 @@ export function replaceParagraphText(
 
       let breakPoint = targetLength;
       if (targetLength > 0 && targetLength < remainingText.length) {
-        const searchStart = Math.max(0, targetLength - 5);
-        const searchEnd = Math.min(remainingText.length, targetLength + 5);
-        const nearbySpace = remainingText.substring(searchStart, searchEnd).indexOf(' ');
+        // Try to break at a word boundary (space) within a search window
+        const searchStart = Math.max(0, targetLength - 10);
+        const searchEnd = Math.min(remainingText.length, targetLength + 10);
+        const searchWindow = remainingText.substring(searchStart, searchEnd);
 
-        if (nearbySpace !== -1) {
-          breakPoint = searchStart + nearbySpace + 1;
+        // Find the space closest to the target position
+        let bestSpace = -1;
+        let bestDistance = Infinity;
+        for (let j = 0; j < searchWindow.length; j++) {
+          if (searchWindow[j] === ' ') {
+            const absolutePos = searchStart + j;
+            const distance = Math.abs(absolutePos - targetLength);
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              bestSpace = absolutePos;
+            }
+          }
+        }
+
+        if (bestSpace !== -1) {
+          breakPoint = bestSpace + 1; // Include the space in the current run
         }
       }
 
