@@ -333,7 +333,7 @@ function classifyLegalSection(title: string): LegalSectionType {
 
 /**
  * Replaces text content in a paragraph while preserving XML structure and formatting
- * Preserves subscript, superscript, bold, italic, and other run-level formatting
+ * Preserves subscript, superscript when detected, otherwise uses simple replacement
  */
 export function replaceParagraphText(
   paragraph: Element,
@@ -351,24 +351,47 @@ export function replaceParagraphText(
     return;
   }
 
-  // Multiple text elements - preserve run structure and formatting
-  // Calculate the proportion of text in each run
-  const runs: Array<{ element: Element; originalLength: number; hasFormatting: boolean }> = [];
-  let totalOriginalLength = 0;
+  // Check if any runs have subscript or superscript formatting (vertAlign element)
+  // Only use proportional distribution if we detect these special formats
+  let hasSubscriptOrSuperscript = false;
 
   for (let i = 0; i < textElements.length; i++) {
     const textEl = textElements[i];
     const run = textEl.parentElement; // <w:r> element
+    if (run) {
+      const rPr = run.getElementsByTagNameNS(W_NS, 'rPr')[0];
+      if (rPr) {
+        const vertAlign = rPr.getElementsByTagNameNS(W_NS, 'vertAlign')[0];
+        if (vertAlign) {
+          hasSubscriptOrSuperscript = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // If no subscript/superscript, use simple approach: put all text in first element
+  if (!hasSubscriptOrSuperscript) {
+    textElements[0].textContent = translatedText;
+    // Clear remaining text elements
+    for (let i = 1; i < textElements.length; i++) {
+      textElements[i].textContent = '';
+    }
+    return;
+  }
+
+  // Has subscript/superscript - use proportional distribution to preserve formatting
+  const runs: Array<{ element: Element; originalLength: number }> = [];
+  let totalOriginalLength = 0;
+
+  for (let i = 0; i < textElements.length; i++) {
+    const textEl = textElements[i];
     const originalText = textEl.textContent || '';
     const originalLength = originalText.length;
 
-    // Check if this run has special formatting (rPr element)
-    const hasFormatting = run ? run.getElementsByTagNameNS(W_NS, 'rPr').length > 0 : false;
-
     runs.push({
       element: textEl,
-      originalLength,
-      hasFormatting
+      originalLength
     });
 
     totalOriginalLength += originalLength;
@@ -377,7 +400,6 @@ export function replaceParagraphText(
   // If the original paragraph had no text, just put everything in the first element
   if (totalOriginalLength === 0) {
     textElements[0].textContent = translatedText;
-    // Clear other elements
     for (let i = 1; i < textElements.length; i++) {
       textElements[i].textContent = '';
     }
@@ -393,31 +415,25 @@ export function replaceParagraphText(
     const isLastRun = i === runs.length - 1;
 
     if (isLastRun) {
-      // Put all remaining text in the last run
       run.element.textContent = remainingText;
     } else {
-      // Calculate proportion for this run
       const proportion = run.originalLength / remainingOriginalLength;
       const targetLength = Math.round(remainingText.length * proportion);
 
-      // Find a good break point (prefer spaces)
       let breakPoint = targetLength;
       if (targetLength > 0 && targetLength < remainingText.length) {
-        // Look for a space near the target position (within 5 characters)
         const searchStart = Math.max(0, targetLength - 5);
         const searchEnd = Math.min(remainingText.length, targetLength + 5);
         const nearbySpace = remainingText.substring(searchStart, searchEnd).indexOf(' ');
 
         if (nearbySpace !== -1) {
-          breakPoint = searchStart + nearbySpace + 1; // Include the space in this run
+          breakPoint = searchStart + nearbySpace + 1;
         }
       }
 
-      // Assign text to this run
       const textForThisRun = remainingText.substring(0, breakPoint);
       run.element.textContent = textForThisRun;
 
-      // Update remaining text
       remainingText = remainingText.substring(breakPoint);
       remainingOriginalLength -= run.originalLength;
     }
