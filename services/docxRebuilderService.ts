@@ -14,8 +14,24 @@ function cleanupPageBreaks(doc: Document): void {
   let removedHardBreaks = 0;
   let removedEmptyParas = 0;
   let removedSectionBreaks = 0;
+  let removedPageBreakBefore = 0;
 
-  // 1. Remove all w:lastRenderedPageBreak elements (soft page breaks)
+  // 1. Remove all w:pageBreakBefore elements from paragraph properties
+  // This is the most common cause of blank pages in legal documents - it forces
+  // each section/article to start on a new page, which creates blanks when text expands
+  const pageBreakBeforeElements = doc.getElementsByTagNameNS(W_NS, "pageBreakBefore");
+  const pageBreakBeforeList: Element[] = [];
+  for (let i = 0; i < pageBreakBeforeElements.length; i++) {
+    pageBreakBeforeList.push(pageBreakBeforeElements[i]);
+  }
+  for (const breakEl of pageBreakBeforeList) {
+    if (breakEl.parentElement) {
+      breakEl.parentElement.removeChild(breakEl);
+      removedPageBreakBefore++;
+    }
+  }
+
+  // 2. Remove all w:lastRenderedPageBreak elements (soft page breaks)
   // These are just Word's rendering hints and will be recalculated when opened
   const softPageBreaks = doc.getElementsByTagNameNS(W_NS, "lastRenderedPageBreak");
   const softBreakElements: Element[] = [];
@@ -29,7 +45,7 @@ function cleanupPageBreaks(doc: Document): void {
     }
   }
 
-  // 2. Remove ALL hard page breaks (w:br with w:type="page")
+  // 3. Remove ALL hard page breaks (w:br with w:type="page")
   // These create explicit page breaks that cause empty pages when text expands
   const allBreaks = doc.getElementsByTagNameNS(W_NS, "br");
   const hardBreaksToRemove: Element[] = [];
@@ -51,7 +67,7 @@ function cleanupPageBreaks(doc: Document): void {
     }
   }
 
-  // 3. Handle section breaks that force new pages
+  // 4. Handle section breaks that force new pages
   // Change "nextPage" section breaks to "continuous" so they don't create blank pages
   const sectPrs = doc.getElementsByTagNameNS(W_NS, "sectPr");
   for (let i = 0; i < sectPrs.length; i++) {
@@ -70,7 +86,7 @@ function cleanupPageBreaks(doc: Document): void {
     }
   }
 
-  // 4. Remove excessive consecutive empty paragraphs
+  // 5. Remove excessive consecutive empty paragraphs
   // Keep maximum 1 empty paragraph between content for spacing
   const paragraphs = doc.getElementsByTagNameNS(W_NS, "p");
   const emptyParasToRemove: Element[] = [];
@@ -108,7 +124,7 @@ function cleanupPageBreaks(doc: Document): void {
     }
   }
 
-  console.log(`Page break cleanup: ${removedSoftBreaks} soft, ${removedHardBreaks} hard, ${removedSectionBreaks} section breaks, ${removedEmptyParas} empty paragraphs removed`);
+  console.log(`Page break cleanup: ${removedPageBreakBefore} pageBreakBefore, ${removedSoftBreaks} soft, ${removedHardBreaks} hard, ${removedSectionBreaks} section breaks, ${removedEmptyParas} empty paragraphs removed`);
 }
 
 /**
