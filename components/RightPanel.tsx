@@ -51,13 +51,16 @@ const RightPanel: React.FC<RightPanelProps> = ({
     // Get IDs of current documents in the left panel
     const currentDocIds = new Set(documents.map(d => d.id));
 
-    // Only count translations for documents that are CURRENTLY in the left panel
-    const completedCount = translatedDocs.filter(td =>
+    // Count translations for documents that are CURRENTLY in the left panel (for translate button)
+    const pendingCompletedCount = translatedDocs.filter(td =>
         td.status === 'completed' && currentDocIds.has(td.originalDocId)
     ).length;
 
+    // Count ALL completed translations (for download button)
+    const allCompletedCount = translatedDocs.filter(td => td.status === 'completed').length;
+
     const totalCount = documents.length;
-    const isAllCompleted = totalCount > 0 && completedCount === totalCount;
+    const isAllCompleted = totalCount > 0 && pendingCompletedCount === totalCount;
     const hasDocuments = documents.length > 0;
 
     return (
@@ -66,9 +69,9 @@ const RightPanel: React.FC<RightPanelProps> = ({
             {/* Header */}
             <div className="h-12 2xl:h-14 bg-white border-b border-lightGray-200 px-3 2xl:px-4 flex items-center justify-between shrink-0">
                 <h2 className="text-navy-900 text-sm 2xl:text-base font-semibold">Translated Docs</h2>
-                {hasDocuments && (
+                {allCompletedCount > 0 && (
                     <span className="text-xs text-slate-500 font-medium">
-                        {completedCount}/{totalCount} <span className="hidden 2xl:inline">complete</span>
+                        {allCompletedCount} <span className="hidden 2xl:inline">complete</span>
                     </span>
                 )}
             </div>
@@ -185,10 +188,10 @@ const RightPanel: React.FC<RightPanelProps> = ({
                 {/* Download All Button */}
                 <button
                     onClick={onDownloadAll}
-                    disabled={completedCount === 0}
+                    disabled={allCompletedCount === 0}
                     className={`
                 w-full h-9 2xl:h-11 rounded-md border-2 flex items-center justify-center space-x-1.5 2xl:space-x-2 font-medium text-xs 2xl:text-sm transition-all duration-200 mb-4 2xl:mb-6
-                ${completedCount === 0
+                ${allCompletedCount === 0
                             ? 'border-slate-200 text-slate-300 cursor-not-allowed'
                             : 'border-profBlue-800 text-profBlue-800 bg-white hover:bg-blue-50'}
             `}
