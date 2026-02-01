@@ -106,8 +106,16 @@ export async function rebuildDocx(
         continue;
       }
 
+      // Use simple replacement for headers, footers, footnotes, and table cells
+      // These have complex layouts where proportional distribution causes issues
+      const location = segment.context?.location;
+      const useSimpleReplacement = location === 'header' ||
+        location === 'footer' ||
+        location === 'footnote' ||
+        location === 'table-cell';
+
       // Replace the text in the paragraph
-      replaceParagraphText(paragraph, translation);
+      replaceParagraphText(paragraph, translation, useSimpleReplacement);
     }
 
     // Only clean up page breaks in the main document body, not headers/footers

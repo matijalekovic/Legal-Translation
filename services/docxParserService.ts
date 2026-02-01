@@ -394,10 +394,15 @@ function runHasFormatting(run: Element | null): boolean {
 /**
  * Replaces text content in a paragraph while preserving XML structure and formatting
  * Preserves ALL run-level formatting (bold, italic, color, subscript, superscript, etc.)
+ *
+ * @param paragraph The paragraph element to modify
+ * @param translatedText The translated text to insert
+ * @param forceSimple If true, always use simple replacement (for headers/footers/tables)
  */
 export function replaceParagraphText(
   paragraph: Element,
-  translatedText: string
+  translatedText: string,
+  forceSimple: boolean = false
 ): void {
   const textElements = paragraph.getElementsByTagNameNS(W_NS, 't');
 
@@ -408,6 +413,16 @@ export function replaceParagraphText(
   // If there's only one text element, simple replacement
   if (textElements.length === 1) {
     setTextContent(textElements[0], translatedText);
+    return;
+  }
+
+  // For headers, footers, and table cells, ALWAYS use simple replacement
+  // Proportional distribution causes issues with complex layouts
+  if (forceSimple) {
+    setTextContent(textElements[0], translatedText);
+    for (let i = 1; i < textElements.length; i++) {
+      setTextContent(textElements[i], '');
+    }
     return;
   }
 
