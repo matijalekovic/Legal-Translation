@@ -6,29 +6,71 @@ import { replaceParagraphText } from "./docxParserService";
 const W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
 /**
- * Removes soft page breaks (rendering hints) to prevent empty pages when text expands
+ * Removes page breaks and cleans up empty content to prevent blank pages
+ * when translated text is longer than the original
  */
 function cleanupPageBreaks(doc: Document): void {
-  // Remove all w:lastRenderedPageBreak elements (soft page breaks)
-  // These are just Word's rendering hints and will be recalculated
+  let removedSoftBreaks = 0;
+  let removedHardBreaks = 0;
+  let removedEmptyParas = 0;
+
+  // 1. Remove all w:lastRenderedPageBreak elements (soft page breaks)
+  // These are just Word's rendering hints and will be recalculated when opened
   const softPageBreaks = doc.getElementsByTagNameNS(W_NS, "lastRenderedPageBreak");
-  const breakElements: Element[] = [];
-
-  // Collect elements to remove (can't remove while iterating)
+  const softBreakElements: Element[] = [];
   for (let i = 0; i < softPageBreaks.length; i++) {
-    breakElements.push(softPageBreaks[i]);
+    softBreakElements.push(softPageBreaks[i]);
   }
-
-  // Remove all soft page breaks
-  for (const breakEl of breakElements) {
+  for (const breakEl of softBreakElements) {
     if (breakEl.parentElement) {
       breakEl.parentElement.removeChild(breakEl);
+      removedSoftBreaks++;
     }
   }
 
-  console.log(`Removed ${breakElements.length} soft page breaks`);
+  // 2. Find and remove hard page breaks (w:br with w:type="page") that are standalone
+  // These create explicit page breaks that may no longer be appropriate after translation
+  const allBreaks = doc.getElementsByTagNameNS(W_NS, "br");
+  const hardBreaksToRemove: Element[] = [];
 
-  // Find and consolidate consecutive empty paragraphs (but keep at least one for spacing)
+  for (let i = 0; i < allBreaks.length; i++) {
+    const br = allBreaks[i];
+    const breakType = br.getAttribute("w:type");
+
+    // Only remove page breaks (not line breaks or column breaks)
+    if (breakType === "page") {
+      // Check if this break is in an otherwise empty paragraph
+      const parentRun = br.parentElement;
+      const parentPara = parentRun?.parentElement;
+
+      if (parentPara && parentPara.localName === "p") {
+        // Check if paragraph only contains this break (no real text)
+        const textElements = parentPara.getElementsByTagNameNS(W_NS, "t");
+        let hasText = false;
+        for (let j = 0; j < textElements.length; j++) {
+          if (textElements[j].textContent && textElements[j].textContent.trim().length > 0) {
+            hasText = true;
+            break;
+          }
+        }
+
+        // If no text in paragraph, mark the break for removal
+        if (!hasText) {
+          hardBreaksToRemove.push(br);
+        }
+      }
+    }
+  }
+
+  for (const br of hardBreaksToRemove) {
+    if (br.parentElement) {
+      br.parentElement.removeChild(br);
+      removedHardBreaks++;
+    }
+  }
+
+  // 3. Remove excessive consecutive empty paragraphs
+  // Keep maximum 1 empty paragraph between content for spacing
   const paragraphs = doc.getElementsByTagNameNS(W_NS, "p");
   const emptyParasToRemove: Element[] = [];
   let consecutiveEmptyCount = 0;
@@ -36,17 +78,29 @@ function cleanupPageBreaks(doc: Document): void {
   for (let i = 0; i < paragraphs.length; i++) {
     const para = paragraphs[i];
     const textElements = para.getElementsByTagNameNS(W_NS, "t");
+    const breaks = para.getElementsByTagNameNS(W_NS, "br");
 
-    // Check if paragraph is empty
-    let hasText = false;
+    // Check if paragraph is empty (no text and no remaining page breaks)
+    let hasContent = false;
     for (let j = 0; j < textElements.length; j++) {
       if (textElements[j].textContent && textElements[j].textContent.trim().length > 0) {
-        hasText = true;
+        hasContent = true;
         break;
       }
     }
 
-    if (!hasText) {
+    // Also check for remaining hard breaks
+    if (!hasContent) {
+      for (let j = 0; j < breaks.length; j++) {
+        const breakType = breaks[j].getAttribute("w:type");
+        if (breakType === "page") {
+          hasContent = true; // Keep if it has page break
+          break;
+        }
+      }
+    }
+
+    if (!hasContent) {
       consecutiveEmptyCount++;
       // Keep first empty paragraph for spacing, remove subsequent ones
       if (consecutiveEmptyCount > 1) {
@@ -61,10 +115,11 @@ function cleanupPageBreaks(doc: Document): void {
   for (const para of emptyParasToRemove) {
     if (para.parentElement) {
       para.parentElement.removeChild(para);
+      removedEmptyParas++;
     }
   }
 
-  console.log(`Removed ${emptyParasToRemove.length} excessive empty paragraphs`);
+  console.log(`Page break cleanup: ${removedSoftBreaks} soft breaks, ${removedHardBreaks} hard breaks, ${removedEmptyParas} empty paragraphs removed`);
 }
 
 /**
