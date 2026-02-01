@@ -6,6 +6,64 @@ import { replaceParagraphText } from "./docxParserService";
 const W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
 /**
+ * Removes soft page breaks (rendering hints) to prevent empty pages when text expands
+ */
+function cleanupPageBreaks(doc: Document): void {
+  // Remove all w:lastRenderedPageBreak elements (soft page breaks)
+  // These are just Word's rendering hints and will be recalculated
+  const softPageBreaks = doc.getElementsByTagNameNS(W_NS, "lastRenderedPageBreak");
+  const breakElements: Element[] = [];
+
+  // Collect elements to remove (can't remove while iterating)
+  for (let i = 0; i < softPageBreaks.length; i++) {
+    breakElements.push(softPageBreaks[i]);
+  }
+
+  // Remove all soft page breaks
+  for (const breakEl of breakElements) {
+    if (breakEl.parentElement) {
+      breakEl.parentElement.removeChild(breakEl);
+    }
+  }
+
+  // Also remove empty runs that might cause spacing issues
+  const runs = doc.getElementsByTagNameNS(W_NS, "r");
+  const emptyRuns: Element[] = [];
+
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i];
+    const textElements = run.getElementsByTagNameNS(W_NS, "t");
+
+    // Check if this run has no text content
+    let hasText = false;
+    for (let j = 0; j < textElements.length; j++) {
+      if (textElements[j].textContent && textElements[j].textContent.trim().length > 0) {
+        hasText = true;
+        break;
+      }
+    }
+
+    // If run has no text and no other important content (tabs, breaks, etc.), mark for removal
+    if (!hasText) {
+      const hasTab = run.getElementsByTagNameNS(W_NS, "tab").length > 0;
+      const hasBreak = run.getElementsByTagNameNS(W_NS, "br").length > 0;
+      const hasDrawing = run.getElementsByTagNameNS(W_NS, "drawing").length > 0;
+
+      if (!hasTab && !hasBreak && !hasDrawing) {
+        emptyRuns.push(run);
+      }
+    }
+  }
+
+  // Remove empty runs
+  for (const run of emptyRuns) {
+    if (run.parentElement) {
+      run.parentElement.removeChild(run);
+    }
+  }
+}
+
+/**
  * Rebuilds a DOCX file with translated content
  */
 export async function rebuildDocx(
@@ -47,6 +105,9 @@ export async function rebuildDocx(
       // Replace the text in the paragraph
       replaceParagraphText(paragraph, translation);
     }
+
+    // Clean up soft page breaks and excessive spacing to prevent empty pages
+    cleanupPageBreaks(doc);
 
     // Serialize XML back to string
     const serializer = new XMLSerializer();
