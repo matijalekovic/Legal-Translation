@@ -15,16 +15,23 @@ function cleanupPageBreaks(doc: Document): void {
   let removedEmptyParas = 0;
   let removedSectionBreaks = 0;
   let removedPageBreakBefore = 0;
+  let removedFrameBreaks = 0;
+  let modifiedWidowControl = 0;
+
+  // Helper to collect elements into array (since HTMLCollection is live)
+  const toArray = (collection: HTMLCollectionOf<Element>): Element[] => {
+    const arr: Element[] = [];
+    for (let i = 0; i < collection.length; i++) {
+      arr.push(collection[i]);
+    }
+    return arr;
+  };
 
   // 1. Remove all w:pageBreakBefore elements from paragraph properties
   // This is the most common cause of blank pages in legal documents - it forces
   // each section/article to start on a new page, which creates blanks when text expands
-  const pageBreakBeforeElements = doc.getElementsByTagNameNS(W_NS, "pageBreakBefore");
-  const pageBreakBeforeList: Element[] = [];
-  for (let i = 0; i < pageBreakBeforeElements.length; i++) {
-    pageBreakBeforeList.push(pageBreakBeforeElements[i]);
-  }
-  for (const breakEl of pageBreakBeforeList) {
+  const pageBreakBeforeElements = toArray(doc.getElementsByTagNameNS(W_NS, "pageBreakBefore"));
+  for (const breakEl of pageBreakBeforeElements) {
     if (breakEl.parentElement) {
       breakEl.parentElement.removeChild(breakEl);
       removedPageBreakBefore++;
@@ -33,12 +40,8 @@ function cleanupPageBreaks(doc: Document): void {
 
   // 2. Remove all w:lastRenderedPageBreak elements (soft page breaks)
   // These are just Word's rendering hints and will be recalculated when opened
-  const softPageBreaks = doc.getElementsByTagNameNS(W_NS, "lastRenderedPageBreak");
-  const softBreakElements: Element[] = [];
-  for (let i = 0; i < softPageBreaks.length; i++) {
-    softBreakElements.push(softPageBreaks[i]);
-  }
-  for (const breakEl of softBreakElements) {
+  const softPageBreaks = toArray(doc.getElementsByTagNameNS(W_NS, "lastRenderedPageBreak"));
+  for (const breakEl of softPageBreaks) {
     if (breakEl.parentElement) {
       breakEl.parentElement.removeChild(breakEl);
       removedSoftBreaks++;
@@ -47,48 +50,89 @@ function cleanupPageBreaks(doc: Document): void {
 
   // 3. Remove ALL hard page breaks (w:br with w:type="page")
   // These create explicit page breaks that cause empty pages when text expands
-  const allBreaks = doc.getElementsByTagNameNS(W_NS, "br");
-  const hardBreaksToRemove: Element[] = [];
-
-  for (let i = 0; i < allBreaks.length; i++) {
-    const br = allBreaks[i];
+  const allBreaks = toArray(doc.getElementsByTagNameNS(W_NS, "br"));
+  for (const br of allBreaks) {
     const breakType = br.getAttribute("w:type");
-
     // Remove all page breaks (not line breaks or column breaks)
     if (breakType === "page") {
-      hardBreaksToRemove.push(br);
-    }
-  }
-
-  for (const br of hardBreaksToRemove) {
-    if (br.parentElement) {
-      br.parentElement.removeChild(br);
-      removedHardBreaks++;
+      if (br.parentElement) {
+        br.parentElement.removeChild(br);
+        removedHardBreaks++;
+      }
     }
   }
 
   // 4. Handle section breaks that force new pages
-  // Change "nextPage" section breaks to "continuous" so they don't create blank pages
-  const sectPrs = doc.getElementsByTagNameNS(W_NS, "sectPr");
-  for (let i = 0; i < sectPrs.length; i++) {
-    const sectPr = sectPrs[i];
+  // Change "nextPage" and "oddPage"/"evenPage" section breaks to "continuous"
+  const sectPrs = toArray(doc.getElementsByTagNameNS(W_NS, "sectPr"));
+  for (const sectPr of sectPrs) {
     const typeElements = sectPr.getElementsByTagNameNS(W_NS, "type");
-
     for (let j = 0; j < typeElements.length; j++) {
       const typeEl = typeElements[j];
       const typeVal = typeEl.getAttribute("w:val");
-
-      // Change nextPage to continuous to prevent forced page breaks
-      if (typeVal === "nextPage") {
+      // Change any page-forcing breaks to continuous
+      if (typeVal === "nextPage" || typeVal === "oddPage" || typeVal === "evenPage") {
         typeEl.setAttribute("w:val", "continuous");
         removedSectionBreaks++;
       }
     }
   }
 
-  // 5. Remove excessive consecutive empty paragraphs
-  // Keep maximum 1 empty paragraph between content for spacing
-  const paragraphs = doc.getElementsByTagNameNS(W_NS, "p");
+  // 5. Remove frame properties that force page breaks (w:framePr with w:dropCap or anchoring)
+  // Frames can have their own page break behavior
+  const framePrs = toArray(doc.getElementsByTagNameNS(W_NS, "framePr"));
+  for (const framePr of framePrs) {
+    // Check for anchor attributes that might cause page positioning issues
+    const vAnchor = framePr.getAttribute("w:vAnchor");
+    const hAnchor = framePr.getAttribute("w:hAnchor");
+    // If frame is anchored to page (not text/margin), it can cause layout issues
+    if (vAnchor === "page" || hAnchor === "page") {
+      // Change page anchoring to margin/text to allow flow
+      if (vAnchor === "page") {
+        framePr.setAttribute("w:vAnchor", "text");
+        removedFrameBreaks++;
+      }
+      if (hAnchor === "page") {
+        framePr.setAttribute("w:hAnchor", "margin");
+        removedFrameBreaks++;
+      }
+    }
+  }
+
+  // 6. Disable aggressive widow/orphan control that can push content to new pages
+  // widowControl forces at least 2 lines at top/bottom of page, which can create gaps
+  const widowControls = toArray(doc.getElementsByTagNameNS(W_NS, "widowControl"));
+  for (const widowCtrl of widowControls) {
+    const val = widowCtrl.getAttribute("w:val");
+    // If widow control is enabled (val is missing or "1" or "true")
+    if (val !== "0" && val !== "false") {
+      widowCtrl.setAttribute("w:val", "0");
+      modifiedWidowControl++;
+    }
+  }
+
+  // 7. Remove keepNext and keepLines that can cause cascading page breaks
+  // These force paragraphs to stay together, which can push large blocks to new pages
+  const keepNextElements = toArray(doc.getElementsByTagNameNS(W_NS, "keepNext"));
+  let removedKeepNext = 0;
+  for (const keepNext of keepNextElements) {
+    if (keepNext.parentElement) {
+      keepNext.parentElement.removeChild(keepNext);
+      removedKeepNext++;
+    }
+  }
+
+  const keepLinesElements = toArray(doc.getElementsByTagNameNS(W_NS, "keepLines"));
+  let removedKeepLines = 0;
+  for (const keepLines of keepLinesElements) {
+    if (keepLines.parentElement) {
+      keepLines.parentElement.removeChild(keepLines);
+      removedKeepLines++;
+    }
+  }
+
+  // 8. Remove excessive consecutive empty paragraphs AND paragraphs with only breaks
+  const paragraphs = toArray(doc.getElementsByTagNameNS(W_NS, "p"));
   const emptyParasToRemove: Element[] = [];
   let consecutiveEmptyCount = 0;
 
@@ -96,7 +140,7 @@ function cleanupPageBreaks(doc: Document): void {
     const para = paragraphs[i];
     const textElements = para.getElementsByTagNameNS(W_NS, "t");
 
-    // Check if paragraph is empty (no text)
+    // Check if paragraph has meaningful text content
     let hasContent = false;
     for (let j = 0; j < textElements.length; j++) {
       if (textElements[j].textContent && textElements[j].textContent.trim().length > 0) {
@@ -124,7 +168,7 @@ function cleanupPageBreaks(doc: Document): void {
     }
   }
 
-  console.log(`Page break cleanup: ${removedPageBreakBefore} pageBreakBefore, ${removedSoftBreaks} soft, ${removedHardBreaks} hard, ${removedSectionBreaks} section breaks, ${removedEmptyParas} empty paragraphs removed`);
+  console.log(`Page break cleanup: ${removedPageBreakBefore} pageBreakBefore, ${removedSoftBreaks} soft, ${removedHardBreaks} hard, ${removedSectionBreaks} section, ${removedEmptyParas} empty paras, ${removedFrameBreaks} frame anchors, ${modifiedWidowControl} widowControl, ${removedKeepNext} keepNext, ${removedKeepLines} keepLines removed`);
 }
 
 /**
@@ -146,7 +190,7 @@ export async function rebuildDocx(
     segmentsByPath.set(segment.xmlPath, existing);
   }
 
-  // Process each XML file
+  // Process each XML file that has segments
   for (const [xmlPath, pathSegments] of segmentsByPath.entries()) {
     const doc = xmlDocuments.get(xmlPath);
     if (!doc) continue;
@@ -178,17 +222,23 @@ export async function rebuildDocx(
       replaceParagraphText(paragraph, translation, useSimpleReplacement);
     }
 
-    // Only clean up page breaks in the main document body, not headers/footers
-    if (xmlPath === 'word/document.xml') {
-      cleanupPageBreaks(doc);
-    }
-
     // Serialize XML back to string
     const serializer = new XMLSerializer();
     const newXmlString = serializer.serializeToString(doc);
 
     // Update ZIP file
     zip.file(xmlPath, newXmlString);
+  }
+
+  // ALWAYS clean up page breaks in the main document, even if it wasn't in segmentsByPath
+  // This handles cases where all content might be in tables/frames
+  const mainDoc = xmlDocuments.get('word/document.xml');
+  if (mainDoc) {
+    cleanupPageBreaks(mainDoc);
+    // Re-serialize after cleanup
+    const serializer = new XMLSerializer();
+    const cleanedXmlString = serializer.serializeToString(mainDoc);
+    zip.file('word/document.xml', cleanedXmlString);
   }
 
   // Generate DOCX blob
