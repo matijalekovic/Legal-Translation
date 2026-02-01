@@ -1,6 +1,110 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { UploadedDocument, TranslatedDocument, TranslationProgress } from '../types';
-import { Languages, Download, CheckCircle, Loader2, FileText, AlertTriangle, X } from 'lucide-react';
+import { Languages, Download, CheckCircle, Loader2, FileText, AlertTriangle, X, HelpCircle, Zap, Sparkles } from 'lucide-react';
+
+// Translation Mode Help Modal
+const TranslationModeModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            onClick={onClose}
+        >
+            {/* Backdrop with blur */}
+            <div className="absolute inset-0 bg-navy-900/60 backdrop-blur-sm" />
+
+            {/* Modal */}
+            <div
+                className="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Translation mode help"
+            >
+                {/* Header */}
+                <div className="bg-gradient-to-r from-profBlue-800 to-profBlue-600 px-5 py-4 flex items-center justify-between">
+                    <h3 className="text-white font-semibold text-lg">Translation Modes</h3>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                    >
+                        <X className="w-5 h-5 text-white" />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-5 space-y-5">
+                    {/* Fast Mode */}
+                    <div className="border border-lightGray-200 rounded-lg p-4 hover:border-profBlue-800/30 transition-colors">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
+                                <Zap className="w-4 h-4 text-amber-600" />
+                            </div>
+                            <h4 className="font-semibold text-navy-900">Fast Mode</h4>
+                        </div>
+                        <p className="text-sm text-slate-600 mb-3">
+                            Quick and cost-effective translation using an optimized model.
+                        </p>
+                        <div className="space-y-1.5">
+                            <p className="text-xs text-slate-500 flex items-start gap-2">
+                                <CheckCircle className="w-3.5 h-3.5 text-green-500 mt-0.5 shrink-0" />
+                                <span>Best for translating <strong>to English</strong> or other widely-supported languages</span>
+                            </p>
+                            <p className="text-xs text-slate-500 flex items-start gap-2">
+                                <CheckCircle className="w-3.5 h-3.5 text-green-500 mt-0.5 shrink-0" />
+                                <span>Ideal for <strong>short documents</strong>, forms, and simple contracts</span>
+                            </p>
+                            <p className="text-xs text-slate-500 flex items-start gap-2">
+                                <CheckCircle className="w-3.5 h-3.5 text-green-500 mt-0.5 shrink-0" />
+                                <span>Great for <strong>quick drafts</strong> and initial reviews</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Professional Mode */}
+                    <div className="border border-profBlue-800/30 rounded-lg p-4 bg-blue-50/30">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="w-8 h-8 rounded-full bg-profBlue-800/10 flex items-center justify-center">
+                                <Sparkles className="w-4 h-4 text-profBlue-800" />
+                            </div>
+                            <h4 className="font-semibold text-navy-900">Professional Mode</h4>
+                            <span className="text-[10px] bg-profBlue-800 text-white px-1.5 py-0.5 rounded-full font-medium">RECOMMENDED</span>
+                        </div>
+                        <p className="text-sm text-slate-600 mb-3">
+                            Premium translation with advanced language model for superior accuracy.
+                        </p>
+                        <div className="space-y-1.5">
+                            <p className="text-xs text-slate-500 flex items-start gap-2">
+                                <CheckCircle className="w-3.5 h-3.5 text-profBlue-800 mt-0.5 shrink-0" />
+                                <span>Essential for <strong>harder target languages</strong> like Serbian, Hungarian, Czech, or Slovak</span>
+                            </p>
+                            <p className="text-xs text-slate-500 flex items-start gap-2">
+                                <CheckCircle className="w-3.5 h-3.5 text-profBlue-800 mt-0.5 shrink-0" />
+                                <span>Best for <strong>lengthy or structurally complex documents</strong> with intricate legal terminology</span>
+                            </p>
+                            <p className="text-xs text-slate-500 flex items-start gap-2">
+                                <CheckCircle className="w-3.5 h-3.5 text-profBlue-800 mt-0.5 shrink-0" />
+                                <span>Superior handling of <strong>context and nuance</strong> in legal text</span>
+                            </p>
+                            <p className="text-xs text-slate-500 flex items-start gap-2">
+                                <CheckCircle className="w-3.5 h-3.5 text-profBlue-800 mt-0.5 shrink-0" />
+                                <span>Recommended for <strong>final versions</strong> of important documents</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Tip */}
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <p className="text-xs text-amber-800">
+                            <strong>Tip:</strong> If unsure, start with Fast mode for a quick preview, then use Professional mode for the final translation.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 interface RightPanelProps {
     documents: UploadedDocument[];
@@ -48,6 +152,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
     onSelectTranslated,
     selectedTranslatedDocId
 }) => {
+    const [isModeHelpOpen, setIsModeHelpOpen] = useState(false);
     // Get IDs of current documents in the left panel
     const currentDocIds = new Set(documents.map(d => d.id));
 
@@ -65,6 +170,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
 
     return (
         <div className="w-full md:w-[280px] 2xl:w-[320px] h-[calc(100vh-56px)] 2xl:h-[calc(100vh-64px)] bg-lightGray-100 border-l border-lightGray-200 flex flex-col shrink-0">
+            <TranslationModeModal isOpen={isModeHelpOpen} onClose={() => setIsModeHelpOpen(false)} />
 
             {/* Header */}
             <div className="h-12 2xl:h-14 bg-white border-b border-lightGray-200 px-3 2xl:px-4 flex items-center justify-between shrink-0">
@@ -105,6 +211,17 @@ const RightPanel: React.FC<RightPanelProps> = ({
                 {/* Translation Mode Selector */}
                 {!isTranslating && (
                     <div className="mb-3 2xl:mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] 2xl:text-xs font-semibold text-slate-600">Translation Mode</span>
+                            <button
+                                onClick={() => setIsModeHelpOpen(true)}
+                                className="w-6 h-6 rounded-full border border-lightGray-200 bg-white text-slate-500 hover:text-profBlue-800 hover:border-profBlue-800/50 hover:bg-blue-50 transition-colors flex items-center justify-center"
+                                aria-label="Open translation mode help"
+                                title="Translation mode help"
+                            >
+                                <HelpCircle className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => onTranslationModeChange('fast')}
