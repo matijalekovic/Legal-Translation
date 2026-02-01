@@ -11,6 +11,8 @@ import {
 
 // WordprocessingML namespace
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+// XML namespace for xml:space attribute
+const XML_NS = 'http://www.w3.org/XML/1998/namespace';
 
 /**
  * Parses a DOCX file and extracts all text segments with their XML context
@@ -337,6 +339,24 @@ function classifyLegalSection(title: string): LegalSectionType {
 }
 
 /**
+ * Sets text content on a w:t element and ensures xml:space="preserve" is set
+ * This is critical for compatibility with older Word versions (2013 and earlier)
+ * which collapse whitespace if this attribute is missing
+ */
+function setTextContent(textElement: Element, text: string): void {
+  textElement.textContent = text;
+
+  // Always set xml:space="preserve" to ensure whitespace is preserved
+  // This is especially important for:
+  // - Text with leading/trailing spaces
+  // - Text with multiple consecutive spaces
+  // - Older Word versions that are strict about whitespace handling
+  if (text.length > 0) {
+    textElement.setAttributeNS(XML_NS, 'xml:space', 'preserve');
+  }
+}
+
+/**
  * Checks if a run element has any formatting properties
  */
 function runHasFormatting(run: Element | null): boolean {
@@ -387,7 +407,7 @@ export function replaceParagraphText(
 
   // If there's only one text element, simple replacement
   if (textElements.length === 1) {
-    textElements[0].textContent = translatedText;
+    setTextContent(textElements[0], translatedText);
     return;
   }
 
@@ -404,10 +424,10 @@ export function replaceParagraphText(
 
   // If no formatting detected, use simple approach: put all text in first element
   if (!hasFormattedRuns) {
-    textElements[0].textContent = translatedText;
+    setTextContent(textElements[0], translatedText);
     // Clear remaining text elements
     for (let i = 1; i < textElements.length; i++) {
-      textElements[i].textContent = '';
+      setTextContent(textElements[i], '');
     }
     return;
   }
@@ -433,9 +453,9 @@ export function replaceParagraphText(
 
   // If the original paragraph had no text, just put everything in the first element
   if (totalOriginalLength === 0) {
-    textElements[0].textContent = translatedText;
+    setTextContent(textElements[0], translatedText);
     for (let i = 1; i < textElements.length; i++) {
-      textElements[i].textContent = '';
+      setTextContent(textElements[i], '');
     }
     return;
   }
@@ -449,7 +469,7 @@ export function replaceParagraphText(
     const isLastRun = i === runs.length - 1;
 
     if (isLastRun) {
-      run.element.textContent = remainingText;
+      setTextContent(run.element, remainingText);
     } else {
       const proportion = run.originalLength / remainingOriginalLength;
       const targetLength = Math.round(remainingText.length * proportion);
@@ -481,7 +501,7 @@ export function replaceParagraphText(
       }
 
       const textForThisRun = remainingText.substring(0, breakPoint);
-      run.element.textContent = textForThisRun;
+      setTextContent(run.element, textForThisRun);
 
       remainingText = remainingText.substring(breakPoint);
       remainingOriginalLength -= run.originalLength;
