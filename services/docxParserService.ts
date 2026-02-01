@@ -357,6 +357,28 @@ function setTextContent(textElement: Element, text: string): void {
 }
 
 /**
+ * Checks if a run element has character spacing (letter-spacing)
+ * This causes issues when proportionally distributing text
+ */
+function runHasLetterSpacing(run: Element | null): boolean {
+  if (!run) return false;
+  const rPr = run.getElementsByTagNameNS(W_NS, 'rPr')[0];
+  if (!rPr) return false;
+
+  // Check for w:spacing element (character spacing)
+  const spacing = rPr.getElementsByTagNameNS(W_NS, 'spacing')[0];
+  if (spacing) {
+    // Check if it has val attribute (character spacing) not just line spacing
+    const val = spacing.getAttribute('w:val');
+    if (val && parseInt(val) !== 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Checks if a run element has any formatting properties
  */
 function runHasFormatting(run: Element | null): boolean {
@@ -419,6 +441,38 @@ export function replaceParagraphText(
   // For headers, footers, and table cells, ALWAYS use simple replacement
   // Proportional distribution causes issues with complex layouts
   if (forceSimple) {
+    setTextContent(textElements[0], translatedText);
+    for (let i = 1; i < textElements.length; i++) {
+      setTextContent(textElements[i], '');
+    }
+    return;
+  }
+
+  // Check for letter-spaced text patterns that would cause weird formatting
+  // Pattern 1: Many runs with single characters (expanded text)
+  let singleCharRunCount = 0;
+  let hasLetterSpacing = false;
+
+  for (let i = 0; i < textElements.length; i++) {
+    const textEl = textElements[i];
+    const text = textEl.textContent || '';
+    const run = textEl.parentElement;
+
+    // Count single character runs (excluding spaces)
+    if (text.trim().length === 1) {
+      singleCharRunCount++;
+    }
+
+    // Check for character spacing formatting
+    if (runHasLetterSpacing(run)) {
+      hasLetterSpacing = true;
+    }
+  }
+
+  // If we have many single-char runs or letter spacing, use simple replacement
+  // This prevents the weird spaced-out text in the output
+  const hasManyShortRuns = singleCharRunCount >= 3 && singleCharRunCount > textElements.length * 0.3;
+  if (hasLetterSpacing || hasManyShortRuns) {
     setTextContent(textElements[0], translatedText);
     for (let i = 1; i < textElements.length; i++) {
       setTextContent(textElements[i], '');
