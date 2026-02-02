@@ -168,7 +168,103 @@ function cleanupPageBreaks(doc: Document): void {
     }
   }
 
-  console.log(`Page break cleanup: ${removedPageBreakBefore} pageBreakBefore, ${removedSoftBreaks} soft, ${removedHardBreaks} hard, ${removedSectionBreaks} section, ${removedEmptyParas} empty paras, ${removedFrameBreaks} frame anchors, ${modifiedWidowControl} widowControl, ${removedKeepNext} keepNext, ${removedKeepLines} keepLines removed`);
+  // 9. Merge continuing paragraphs - THE KEY FIX!
+  // Legal documents often have many small paragraphs that split mid-sentence
+  // When translated text expands, these breaks cause awkward page splits
+  // Merge paragraphs that are continuations of previous ones
+  const mergedParas = mergeContinuingParagraphs(doc);
+
+  console.log(`Page break cleanup: ${removedPageBreakBefore} pageBreakBefore, ${removedSoftBreaks} soft, ${removedHardBreaks} hard, ${removedSectionBreaks} section, ${removedEmptyParas} empty paras, ${removedFrameBreaks} frame anchors, ${modifiedWidowControl} widowControl, ${removedKeepNext} keepNext, ${removedKeepLines} keepLines, ${mergedParas} paragraphs merged`);
+}
+
+/**
+ * Merges consecutive paragraphs that are continuations of each other
+ * This is the key fix for the blank page issue - reduces artificial paragraph breaks
+ */
+function mergeContinuingParagraphs(doc: Document): number {
+  let mergedCount = 0;
+
+  // Get all paragraphs (need to re-query after each merge since we're modifying the DOM)
+  let paragraphs = Array.from(doc.getElementsByTagNameNS(W_NS, 'p'));
+
+  for (let i = 0; i < paragraphs.length - 1; i++) {
+    const currentPara = paragraphs[i];
+    const nextPara = paragraphs[i + 1];
+
+    if (!currentPara || !nextPara || !currentPara.parentElement) continue;
+
+    // Get text content of both paragraphs
+    const currentText = extractParagraphTextContent(currentPara);
+    const nextText = extractParagraphTextContent(nextPara);
+
+    // Skip empty paragraphs
+    if (!currentText.trim() || !nextText.trim()) continue;
+
+    // Check if current paragraph ends with sentence-ending punctuation
+    const currentTrimmed = currentText.trim();
+    const endsWithSentence = /[.!?;:]$/.test(currentTrimmed);
+
+    // Check if next paragraph starts with section number or list marker
+    const nextTrimmed = nextText.trim();
+    const startsWithNumber = /^(\d+\.)+\d*\s/.test(nextTrimmed); // Matches "25.3 " or "1.2.3 "
+    const startsWithListMarker = /^[•\-–—]\s/.test(nextTrimmed);
+    const startsWithParenNumber = /^\(\d+\)/.test(nextTrimmed); // Matches "(1)"
+    const startsWithAllCaps = nextTrimmed.length > 3 && /^[A-ZŠČĆŽĐ]{3,}/.test(nextTrimmed); // All caps heading
+
+    // Merge if:
+    // - Current doesn't end with sentence punctuation
+    // - Next doesn't start with section number, list marker, or heading
+    const shouldMerge = !endsWithSentence &&
+                       !startsWithNumber &&
+                       !startsWithListMarker &&
+                       !startsWithParenNumber &&
+                       !startsWithAllCaps;
+
+    if (shouldMerge) {
+      // Move all runs from next paragraph to current paragraph
+      const nextRuns = Array.from(nextPara.getElementsByTagNameNS(W_NS, 'r'));
+
+      // Add a space before merging if current doesn't end with space
+      if (!/\s$/.test(currentText)) {
+        // Create a space run
+        const spaceRun = doc.createElementNS(W_NS, 'w:r');
+        const spaceText = doc.createElementNS(W_NS, 'w:t');
+        spaceText.textContent = ' ';
+        spaceText.setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:space', 'preserve');
+        spaceRun.appendChild(spaceText);
+        currentPara.appendChild(spaceRun);
+      }
+
+      // Move all runs from next paragraph to current
+      for (const run of nextRuns) {
+        currentPara.appendChild(run.cloneNode(true));
+      }
+
+      // Remove the next paragraph
+      if (nextPara.parentElement) {
+        nextPara.parentElement.removeChild(nextPara);
+        mergedCount++;
+
+        // Update our array to reflect the removal
+        paragraphs = Array.from(doc.getElementsByTagNameNS(W_NS, 'p'));
+        i--; // Recheck current position since we removed the next paragraph
+      }
+    }
+  }
+
+  return mergedCount;
+}
+
+/**
+ * Extracts plain text content from a paragraph
+ */
+function extractParagraphTextContent(paragraph: Element): string {
+  const textElements = paragraph.getElementsByTagNameNS(W_NS, 't');
+  let text = '';
+  for (let i = 0; i < textElements.length; i++) {
+    text += textElements[i].textContent || '';
+  }
+  return text;
 }
 
 /**
