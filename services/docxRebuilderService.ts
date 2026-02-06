@@ -53,8 +53,8 @@ function cleanupPageBreaks(doc: Document): void {
   const allBreaks = toArray(doc.getElementsByTagNameNS(W_NS, "br"));
   for (const br of allBreaks) {
     const breakType = br.getAttribute("w:type");
-    // Remove all page breaks (not line breaks or column breaks)
-    if (breakType === "page") {
+    // Remove page breaks and column breaks (not line breaks)
+    if (breakType === "page" || breakType === "column") {
       if (br.parentElement) {
         br.parentElement.removeChild(br);
         removedHardBreaks++;
@@ -131,7 +131,30 @@ function cleanupPageBreaks(doc: Document): void {
     }
   }
 
-  // 8. Remove excessive consecutive empty paragraphs AND paragraphs with only breaks
+  // 8. Cap excessive paragraph spacing that creates large visual gaps
+  let cappedSpacing = 0;
+  const spacingElements = toArray(doc.getElementsByTagNameNS(W_NS, 'spacing'));
+  const MAX_PARA_SPACING = 480; // 24pt max - generous but prevents full-page gaps
+
+  for (const spacingEl of spacingElements) {
+    // Only handle paragraph-level spacing (inside w:pPr, not w:rPr)
+    const parent = spacingEl.parentElement;
+    if (!parent || parent.localName !== 'pPr') continue;
+
+    const before = spacingEl.getAttribute('w:before');
+    const after = spacingEl.getAttribute('w:after');
+
+    if (before && parseInt(before) > MAX_PARA_SPACING) {
+      spacingEl.setAttribute('w:before', String(MAX_PARA_SPACING));
+      cappedSpacing++;
+    }
+    if (after && parseInt(after) > MAX_PARA_SPACING) {
+      spacingEl.setAttribute('w:after', String(MAX_PARA_SPACING));
+      cappedSpacing++;
+    }
+  }
+
+  // 9. Remove excessive consecutive empty paragraphs AND paragraphs with only breaks
   const paragraphs = toArray(doc.getElementsByTagNameNS(W_NS, "p"));
   const emptyParasToRemove: Element[] = [];
   let consecutiveEmptyCount = 0;
@@ -168,13 +191,13 @@ function cleanupPageBreaks(doc: Document): void {
     }
   }
 
-  // 9. Merge continuing paragraphs - THE KEY FIX!
+  // 10. Merge continuing paragraphs - THE KEY FIX!
   // Legal documents often have many small paragraphs that split mid-sentence
   // When translated text expands, these breaks cause awkward page splits
   // Merge paragraphs that are continuations of previous ones
   const mergedParas = mergeContinuingParagraphs(doc);
 
-  console.log(`Page break cleanup: ${removedPageBreakBefore} pageBreakBefore, ${removedSoftBreaks} soft, ${removedHardBreaks} hard, ${removedSectionBreaks} section, ${removedEmptyParas} empty paras, ${removedFrameBreaks} frame anchors, ${modifiedWidowControl} widowControl, ${removedKeepNext} keepNext, ${removedKeepLines} keepLines, ${mergedParas} paragraphs merged`);
+  console.log(`Page break cleanup: ${removedPageBreakBefore} pageBreakBefore, ${removedSoftBreaks} soft, ${removedHardBreaks} hard, ${removedSectionBreaks} section, ${removedEmptyParas} empty paras, ${removedFrameBreaks} frame anchors, ${modifiedWidowControl} widowControl, ${removedKeepNext} keepNext, ${removedKeepLines} keepLines, ${cappedSpacing} spacing capped, ${mergedParas} paragraphs merged`);
 }
 
 /**
@@ -253,6 +276,52 @@ function mergeContinuingParagraphs(doc: Document): number {
   }
 
   return mergedCount;
+}
+
+/**
+ * Removes page-break-causing properties from style definitions in styles.xml
+ * This is critical because pageBreakBefore set in a style definition overrides
+ * inline removal - Word will still force page breaks based on the style
+ */
+function cleanupStyles(doc: Document): void {
+  const toArray = (collection: HTMLCollectionOf<Element>): Element[] => {
+    const arr: Element[] = [];
+    for (let i = 0; i < collection.length; i++) {
+      arr.push(collection[i]);
+    }
+    return arr;
+  };
+
+  let removed = 0;
+
+  // Remove pageBreakBefore from all style definitions
+  const pageBreakBeforeElements = toArray(doc.getElementsByTagNameNS(W_NS, 'pageBreakBefore'));
+  for (const el of pageBreakBeforeElements) {
+    if (el.parentElement) {
+      el.parentElement.removeChild(el);
+      removed++;
+    }
+  }
+
+  // Remove keepNext from style definitions (causes cascading page breaks)
+  const keepNextElements = toArray(doc.getElementsByTagNameNS(W_NS, 'keepNext'));
+  for (const el of keepNextElements) {
+    if (el.parentElement) {
+      el.parentElement.removeChild(el);
+      removed++;
+    }
+  }
+
+  // Remove keepLines from style definitions
+  const keepLinesElements = toArray(doc.getElementsByTagNameNS(W_NS, 'keepLines'));
+  for (const el of keepLinesElements) {
+    if (el.parentElement) {
+      el.parentElement.removeChild(el);
+      removed++;
+    }
+  }
+
+  console.log(`Style cleanup: removed ${removed} page-break-causing properties from styles`);
 }
 
 /**
@@ -335,6 +404,19 @@ export async function rebuildDocx(
     const serializer = new XMLSerializer();
     const cleanedXmlString = serializer.serializeToString(mainDoc);
     zip.file('word/document.xml', cleanedXmlString);
+  }
+
+  // Clean up styles.xml to remove pageBreakBefore from style definitions
+  // This is critical - styles can force page breaks that override inline removal
+  const stylesFile = zip.file('word/styles.xml');
+  if (stylesFile) {
+    const stylesXmlString = await stylesFile.async('string');
+    const parser = new DOMParser();
+    const stylesDoc = parser.parseFromString(stylesXmlString, 'application/xml');
+    cleanupStyles(stylesDoc);
+    const serializer = new XMLSerializer();
+    const cleanedStylesString = serializer.serializeToString(stylesDoc);
+    zip.file('word/styles.xml', cleanedStylesString);
   }
 
   // Generate DOCX blob
