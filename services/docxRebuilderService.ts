@@ -174,9 +174,24 @@ function cleanupPageBreaks(doc: Document): void {
 
     if (!hasContent) {
       consecutiveEmptyCount++;
-      // Keep first empty paragraph for spacing, remove subsequent ones
+      // Remove ALL consecutive empty paragraphs beyond the first
       if (consecutiveEmptyCount > 1) {
         emptyParasToRemove.push(para);
+      } else {
+        // For the first empty paragraph we keep, strip any spacing
+        // to prevent it from creating large visual gaps
+        const pPr = para.getElementsByTagNameNS(W_NS, 'pPr')[0];
+        if (pPr) {
+          const spacings = toArray(pPr.getElementsByTagNameNS(W_NS, 'spacing') as unknown as HTMLCollectionOf<Element>);
+          for (const sp of spacings) {
+            pPr.removeChild(sp);
+          }
+          // Also remove any pageBreakBefore that might have been inherited
+          const pbbs = toArray(pPr.getElementsByTagNameNS(W_NS, 'pageBreakBefore') as unknown as HTMLCollectionOf<Element>);
+          for (const pbb of pbbs) {
+            pPr.removeChild(pbb);
+          }
+        }
       }
     } else {
       consecutiveEmptyCount = 0;
@@ -417,6 +432,19 @@ export async function rebuildDocx(
     const serializer = new XMLSerializer();
     const cleanedStylesString = serializer.serializeToString(stylesDoc);
     zip.file('word/styles.xml', cleanedStylesString);
+  }
+
+  // Clean up numbering.xml to remove pageBreakBefore from numbering level definitions
+  // Numbered articles (8.1, 8.2, etc.) can have page break properties in their numbering style
+  const numberingFile = zip.file('word/numbering.xml');
+  if (numberingFile) {
+    const numberingXmlString = await numberingFile.async('string');
+    const parser = new DOMParser();
+    const numberingDoc = parser.parseFromString(numberingXmlString, 'application/xml');
+    cleanupStyles(numberingDoc); // Reuse same cleanup - removes pageBreakBefore, keepNext, keepLines
+    const serializer = new XMLSerializer();
+    const cleanedNumberingString = serializer.serializeToString(numberingDoc);
+    zip.file('word/numbering.xml', cleanedNumberingString);
   }
 
   // Generate DOCX blob
